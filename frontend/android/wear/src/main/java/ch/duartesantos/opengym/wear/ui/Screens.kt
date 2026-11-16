@@ -97,6 +97,7 @@ import androidx.wear.compose.foundation.curvedComposable
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.HorizontalPageIndicator
@@ -252,35 +253,36 @@ fun StartScreen(s: ch.duartesantos.opengym.wear.SessionState) {
     // The first snapshot swaps "Not synced yet" for the routines: start at the top, not mid-list.
     val empty = today == null && others.isEmpty()
     LaunchedEffect(empty) { if (!empty) list.scrollToItem(0) }
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 30.dp + 16.dp * (LocalDensity.current.fontScale - 1f).coerceIn(0f, 0.5f), bottom = 40.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = (if (LocalRound.current) ListTop else 30.dp) + 16.dp * (LocalDensity.current.fontScale - 1f).coerceIn(0f, 0.5f), bottom = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         if (today == null && others.isEmpty()) {
-            item { LogoMark() }
-            item {
+            edgeItem(edge) { LogoMark() }
+            edgeItem(edge) {
                 Text(stringResource(if (!s.synced) R.string.not_synced else R.string.no_workout), fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, textAlign = TextAlign.Center)
             }
-            item { Quiet(stringResource(if (!s.synced) R.string.open_phone_once else R.string.start_on_phone), 12.sp, lines = 4) }
-            item { VersionLine() }
+            edgeItem(edge) { Quiet(stringResource(if (!s.synced) R.string.open_phone_once else R.string.start_on_phone), 12.sp, lines = 4) }
+            edgeItem(edge) { VersionLine() }
             return@TransformingLazyColumn
         }
         if (today != null) {
-            item { TodayCard(today) }
+            edgeItem(edge) { TodayCard(today) }
         } else {
-            item { Quiet(stringResource(R.string.rest_day), 13.sp) }
+            edgeItem(edge) { Quiet(stringResource(R.string.rest_day), 13.sp, Modifier.padding(horizontal = if (LocalRound.current) TitleInset else 0.dp)) }
             others.firstOrNull()?.let { first ->
-                item { PrimaryButton(stringResource(R.string.quick_start), Modifier.fillMaxWidth(), icon = G.PLAY) { WearStore.start(first) } }
+                edgeItem(edge) { PrimaryButton(stringResource(R.string.quick_start), Modifier.fillMaxWidth(), icon = G.PLAY) { WearStore.start(first) } }
             }
         }
-        items(others) { r ->
+        edgeItems(others, edge) { r ->
             RowButton(r.name, Modifier.fillMaxWidth(), center = false, icon = G.PLAY, tint = Og.Text) { WearStore.start(r) }
         }
         // A workout finished here with the phone away: its sets are still on their way.
-        item { SyncLine(sync, showSynced = false) }
-        item { VersionLine() }
+        edgeItem(edge) { SyncLine(sync, showSynced = false) }
+        edgeItem(edge) { VersionLine() }
     }
 }
 
@@ -344,6 +346,7 @@ fun WeighInScreen() {
     LaunchedEffect(Unit) { try { focus.requestFocus() } catch (_: Exception) {} }
     val (whole, tenth) = WeighIn.parts(bw)
     val list = rememberTransformingLazyColumnState()
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize().crown(focus) { d ->
             val (wh, te) = WeighIn.parts(WearStore.bodyWeight.value)
@@ -355,7 +358,7 @@ fun WeighInScreen() {
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 40.dp, bottom = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        item {
+        edgeItem(edge) {
             val said = stringResource(R.string.body_weight)
             // A tenth up or down, as on the Apple Watch.
             val adjust = adjustActions { d ->
@@ -374,9 +377,9 @@ fun WeighInScreen() {
                 Text(" $unit", color = Og.Label2, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp))
             }
         }
-        item { PrimaryButton(stringResource(R.string.save_and_start), Modifier.fillMaxWidth()) { WearStore.finishWeighIn(true) } }
-        item { RowButton(stringResource(R.string.start_without_weighin), Modifier.fillMaxWidth()) { WearStore.finishWeighIn(false) } }
-        item {
+        edgeItem(edge) { PrimaryButton(stringResource(R.string.save_and_start), Modifier.fillMaxWidth()) { WearStore.finishWeighIn(true) } }
+        edgeItem(edge) { RowButton(stringResource(R.string.start_without_weighin), Modifier.fillMaxWidth()) { WearStore.finishWeighIn(false) } }
+        edgeItem(edge) {
             Text(stringResource(R.string.cancel), color = Og.Label2, fontSize = 13.sp,
                 modifier = Modifier.heightIn(min = 40.dp).padding(top = 10.dp).combinedClickable(role = Role.Button) { WearStore.cancelWeighIn() })
         }
@@ -1017,14 +1020,15 @@ fun OverviewPage(onScreen: Boolean) {
     val list = rememberTransformingLazyColumnState()
     val (done, total) = SessionCore.progress(s)
     val rows = Overview.rows(w, s.entryIndex)
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (LocalRound.current) ListTop else 30.dp, bottom = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        item { Text(w.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textAlign = TextAlign.Center, maxLines = 2) }
-        if (total > 0) item { Quiet(stringResource(R.string.sets_of, done, total), 12.sp) }
-        items(rows) { row ->
+        edgeItem(edge) { Text(w.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textAlign = TextAlign.Center, maxLines = 2) }
+        if (total > 0) edgeItem(edge) { Quiet(stringResource(R.string.sets_of, done, total), 12.sp) }
+        edgeItems(rows, edge) { row ->
             Column(Modifier.fillMaxWidth()) {
                 if (row.supersetStart) Row(Modifier.padding(start = 6.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Glyph(G.LINK, Og.Purple, 10.dp); Spacer(Modifier.width(4.dp))
@@ -1033,9 +1037,9 @@ fun OverviewPage(onScreen: Boolean) {
                 OverviewRowView(row, enabled = hold == null, wid = w.id, showClip = s.settings.show?.clip)
             }
         }
-        item { SyncLine(sync, heard = s.synced, modifier = Modifier.padding(top = 6.dp)) }
-        item { HoldToFinish(Modifier.padding(top = 4.dp)) { WearStore.finish() } }
-        item { RowButton(stringResource(R.string.discard_workout), Modifier.fillMaxWidth(), tint = Og.Red) { confirmDiscard = true } }
+        edgeItem(edge) { SyncLine(sync, heard = s.synced, modifier = Modifier.padding(top = 6.dp)) }
+        edgeItem(edge) { HoldToFinish(Modifier.padding(top = 4.dp)) { WearStore.finish() } }
+        edgeItem(edge) { RowButton(stringResource(R.string.discard_workout), Modifier.fillMaxWidth(), tint = Og.Red) { confirmDiscard = true } }
     }
 }
 
@@ -1460,15 +1464,16 @@ fun MediaPage() {
     @Composable fun OpenControls() {
         RowButton(stringResource(R.string.media_open), Modifier.fillMaxWidth()) { try { ctx.startActivity(controls) } catch (_: Exception) {} }
     }
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 30.dp, bottom = 34.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { Text(stringResource(R.string.media_now_playing), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
-        item { Quiet(stringResource(if (here) R.string.media_on_watch else R.string.media_phone_hint), 12.sp, lines = 3) }
-        if (openFirst) item { OpenControls() }
-        item {
+        edgeItem(edge) { Text(stringResource(R.string.media_now_playing), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+        edgeItem(edge) { Quiet(stringResource(if (here) R.string.media_on_watch else R.string.media_phone_hint), 12.sp, lines = 3) }
+        if (openFirst) edgeItem(edge) { OpenControls() }
+        edgeItem(edge) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 EdgeButton(stringResource(R.string.media_prev), glyph = G.PREV) { key(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
                 val said = stringResource(R.string.media_play)
@@ -1481,13 +1486,13 @@ fun MediaPage() {
                 EdgeButton(stringResource(R.string.media_next), glyph = G.NEXT) { key(android.view.KeyEvent.KEYCODE_MEDIA_NEXT) }
             }
         }
-        item {
+        edgeItem(edge) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 EdgeButton(stringResource(R.string.media_quieter), glyph = G.MINUS, size = 40.dp) { vol(-1) }
                 EdgeButton(stringResource(R.string.media_louder), glyph = G.PLUS, size = 40.dp) { vol(1) }
             }
         }
-        if (controls != null && !openFirst && !dim) item { OpenControls() }
+        if (controls != null && !openFirst && !dim) edgeItem(edge) { OpenControls() }
     }
 }
 
@@ -1505,12 +1510,13 @@ fun IdlePrompt() {
     val endsAt by WearStore.idleEndsAt.collectAsState()
     val clock = endsAt?.let { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(it)) }
     val list = rememberTransformingLazyColumnState()
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (LocalRound.current) ListTop else 34.dp, bottom = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        item {
+        edgeItem(edge) {
             // The top of a round screen is its narrowest part: a smaller title with a round-safe inset.
             // "Looks like you left" reached the bezel on a 40 mm watch and lost the corner of its L.
             val title = stringResource(if (left) R.string.left_gym else R.string.still_training)
@@ -1528,19 +1534,19 @@ fun IdlePrompt() {
             }
         }
         when {
-            clock != null -> item { Quiet(stringResource(if (left) R.string.left_ends_at else R.string.idle_ends_at, clock), 12.sp, lines = 6) }
-            minutes > 0 -> item { Quiet(stringResource(R.string.no_set_for, minutes), 12.sp, lines = 3) }
+            clock != null -> edgeItem(edge) { Quiet(stringResource(if (left) R.string.left_ends_at else R.string.idle_ends_at, clock), 12.sp, lines = 6) }
+            minutes > 0 -> edgeItem(edge) { Quiet(stringResource(R.string.no_set_for, minutes), 12.sp, lines = 3) }
         }
         if (left) {
-            item {
+            edgeItem(edge) {
                 PrimaryButton(stringResource(R.string.finish_now), Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     WearStore.keepGoing(); WearStore.page.value = Page.OVERVIEW
                 }
             }
-            item { RowButton(stringResource(R.string.keep_going), Modifier.fillMaxWidth()) { WearStore.keepGoing() } }
+            edgeItem(edge) { RowButton(stringResource(R.string.keep_going), Modifier.fillMaxWidth()) { WearStore.keepGoing() } }
         } else {
-            item { PrimaryButton(stringResource(R.string.keep_going), Modifier.fillMaxWidth().padding(top = 4.dp)) { WearStore.keepGoing() } }
-            item {
+            edgeItem(edge) { PrimaryButton(stringResource(R.string.keep_going), Modifier.fillMaxWidth().padding(top = 4.dp)) { WearStore.keepGoing() } }
+            edgeItem(edge) {
                 RowButton(stringResource(R.string.finish_workout), Modifier.fillMaxWidth()) {
                     WearStore.keepGoing(); WearStore.page.value = Page.OVERVIEW
                 }
@@ -1561,12 +1567,13 @@ fun SummaryScreen(sum: WorkoutSummary) {
     val shownAt = remember { System.currentTimeMillis() }
     val locale = LocalConfiguration.current.locales[0]
     val list = rememberTransformingLazyColumnState()
+    val edge = rememberTransformationSpec()
     TransformingLazyColumn(
         state = list, modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (LocalRound.current) ListTop else 32.dp, bottom = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        item {
+        edgeItem(edge) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(18.dp).clip(CircleShape).background(a.accent), contentAlignment = Alignment.Center) { Glyph(G.CHECK, a.on, 11.dp) }
                 Spacer(Modifier.width(6.dp))
@@ -1574,30 +1581,30 @@ fun SummaryScreen(sum: WorkoutSummary) {
                     fontWeight = FontWeight.SemiBold, maxLines = 2)
             }
         }
-        item { Quiet(sum.name, 12.sp) }
+        edgeItem(edge) { Quiet(sum.name, 12.sp) }
         sum.duration?.let { d ->
-            item {
+            edgeItem(edge) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Quiet(stringResource(R.string.time), 12.sp)
                     Text(duration(d, locale), style = Og.Number, fontSize = 30.sp, color = Og.Yellow, maxLines = 1)
                 }
             }
         }
-        item {
+        edgeItem(edge) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 SumStat(stringResource(R.string.sets), "${sum.sets}")
                 if (sum.volume > 0) SumStat(stringResource(R.string.volume), java.text.NumberFormat.getIntegerInstance(locale).format(Math.round(sum.volume)) + " " + sum.unit)
             }
         }
         if (sum.prs.isNotEmpty()) {
-            item { Quiet(stringResource(R.string.personal_records), 12.sp, color = Og.Yellow, modifier = Modifier.padding(top = 2.dp)) }
-            items(sum.prs) { Text(it, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 2) }
+            edgeItem(edge) { Quiet(stringResource(R.string.personal_records), 12.sp, color = Og.Yellow, modifier = Modifier.padding(top = 2.dp)) }
+            edgeItems(sum.prs, edge) { Text(it, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 2) }
         }
-        if (sum.hrAvg != null && sum.hrMax != null) item { HrStat(stringResource(R.string.heart_rate), stringResource(R.string.hr_avg_max, sum.hrAvg, sum.hrMax)) }
+        if (sum.hrAvg != null && sum.hrMax != null) edgeItem(edge) { HrStat(stringResource(R.string.heart_rate), stringResource(R.string.hr_avg_max, sum.hrAvg, sum.hrMax)) }
         if (sum.kcal != null && st.settings.show?.showKcal != false)
-            item { SumStat(stringResource(R.string.calories), java.text.NumberFormat.getIntegerInstance(locale).format(sum.kcal) + " kcal") }
-        item { SyncLine(sync, heard = heard) }
-        item {
+            edgeItem(edge) { SumStat(stringResource(R.string.calories), java.text.NumberFormat.getIntegerInstance(locale).format(sum.kcal) + " kcal") }
+        edgeItem(edge) { SyncLine(sync, heard = heard) }
+        edgeItem(edge) {
             PrimaryButton(stringResource(R.string.done), Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 if (System.currentTimeMillis() - shownAt >= 1000) WearStore.dismissSummary()
             }
