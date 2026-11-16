@@ -32,7 +32,7 @@ describe('the two defaults', () => {
   it('the brand green comes first in the picker, the old one stays as Classic green', () => {
     expect(Object.keys(ACCENTS)[0]).toBe('brand')
     expect(Object.keys(ACCENTS)[1]).toBe('lime')
-    expect(ACCENT_NAMES.brand).toBe('openGym green')
+    expect(ACCENT_NAMES.brand).toBe('Craveiro Gym green')
     expect(ACCENT_NAMES.lime).toBe('Classic green')
     expect(Object.keys(ACCENT_NAMES)).toEqual(Object.keys(ACCENTS))
     expect(Object.keys(ACCENT_INK)).toEqual(Object.keys(ACCENTS))

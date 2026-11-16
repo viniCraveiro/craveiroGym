@@ -232,7 +232,7 @@ export const SEARCH = [
   { page: 'reminders', title: 'Nudge me when I skip a planned workout', icon: 'bell', tint: 'var(--red)', kw: 'nudge skip missed motivation', when: c => remind(c) && c.reminderOn, via: PUSH },
   { page: 'reminders', title: 'Nudge tone', icon: 'chat', tint: 'var(--blue)', kw: 'nudge tone friendly guilt drill sergeant', opts: ['Friendly', 'Guilt trip', 'Drill sergeant'], when: c => remind(c) && c.reminderOn && c.nudge, via: PUSH },
   { page: 'reminders', title: 'Check-in reminders', icon: 'ruler', tint: 'var(--teal)', kw: 'measurement measure tape photo progress picture weigh weight blood pressure remind every two weeks', when: remind, via: PUSH },
-  { page: 'reminders', title: 'Your year in openGym', icon: 'sparkles', tint: 'var(--acc)', mod: 'motivation', kw: 'year recap wrapped review december notification', when: remind, via: PUSH },
+  { page: 'reminders', title: 'Your year in Craveiro Gym', icon: 'sparkles', tint: 'var(--acc)', mod: 'motivation', kw: 'year recap wrapped review december notification', when: remind, via: PUSH },
   { page: 'reminders', title: 'Gym reminder', icon: 'mapPin', tint: 'var(--green)', kw: 'gym location arrive arrival geofence place map nearby', when: c => !!c.mobile && c.gymReminder !== false },
   { page: 'reminders', title: 'Send test notification', icon: 'bell', tint: 'var(--red)', kw: 'test push notification try', when: c => !c.mobile && c.pushOK, via: PUSH },
   // Plan & schedule

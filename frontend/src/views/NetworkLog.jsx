@@ -47,7 +47,7 @@ export default function NetworkLogPage() {
   const recent = log.entries.slice(-50).reverse()
   const since = log.since ? clock(log.since) : null
   const lead = log.total === 0
-    ? (offline ? t('And it stays that way: openGym Offline has no internet permission, so Android blocks anything it might try.')
+    ? (offline ? t('And it stays that way: Craveiro Gym Offline has no internet permission, so Android blocks anything it might try.')
       : paired ? t('Nothing yet. Your server hears from this phone when there is something to sync.')
         : t('Not a single byte left this phone. Your training is nobody’s business but yours.'))
     : paired && server ? t('Mostly your own server, {0}, when there was something to sync.', hostOf(server))

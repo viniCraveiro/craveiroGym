@@ -153,13 +153,13 @@ export function printShell({ title, kicker = '', facts = [], owner = '', date, b
 ${css}</style></head>
 <body><div class="doc">
   <header class="mast keep">
-    <div class="mast-top"><div class="brand">${LOGO_SVG}<span>open<span class="g">Gym</span></span></div><div class="mast-meta">${meta}</div></div>
+    <div class="mast-top"><div class="brand">${LOGO_SVG}<span>Craveiro <span class="g">Gym</span></span></div><div class="mast-meta">${meta}</div></div>
     ${kicker ? `<div class="kicker">${esc(kicker)}</div>` : ''}
     <h1>${esc(title)}</h1>
     ${factLine ? `<div class="facts">${factLine}</div>` : ''}
   </header>
   ${body}
-  <div class="end keep">${esc(t('Made with openGym'))} · opengym.ch${credit ? `<div class="credit" lang="en" dir="ltr">${esc(credit)}</div>` : ''}</div>
+  <div class="end keep">${esc(t('Made with Craveiro Gym'))} · opengym.ch${credit ? `<div class="credit" lang="en" dir="ltr">${esc(credit)}</div>` : ''}</div>
 </div></body></html>`
 }
 
@@ -214,7 +214,7 @@ function printInFrame(html) {
  * suggested PDF file; Android refuses a job without one.
  */
 export function printDocument(html, name) {
-  if (MOBILE) return printHtml(html, name || 'openGym', printOptions()).catch(err => {
+  if (MOBILE) return printHtml(html, name || 'Craveiro Gym', printOptions()).catch(err => {
     // A dismissed sheet stays quiet. A phone with no print service at all (#991) says so: the
     // store comes in through a dynamic import, since plain Node tests load this file too.
     if (err?.code !== 'no-service') return

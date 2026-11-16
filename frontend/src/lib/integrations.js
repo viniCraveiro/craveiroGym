@@ -49,7 +49,7 @@ export const CARDS = [
   {
     id: 'csv', cat: 'training', name: 'Spreadsheet (CSV)', translate: true, icon: 'share', tint: 'var(--green)',
     desc: 'Every set, weigh-in and measurement, for Excel and friends.',
-    syncs: ['One row per set, plus body weight and measurements.', 'openGym can read it back in later.'],
+    syncs: ['One row per set, plus body weight and measurements.', 'Craveiro Gym can read it back in later.'],
   },
   {
     id: 'webdav', cat: 'backup', name: 'WebDAV backup', translate: true, icon: 'cloud', tint: 'var(--blue)',

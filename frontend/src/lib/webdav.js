@@ -142,12 +142,12 @@ export class DavError extends Error {
 export function errorText(e) {
   switch (e?.code) {
     case 'auth': return 'The server did not take that name and password. An app password usually works best.'
-    case 'missing': return 'That folder is not there, and openGym could not make it. Make it on the server first.'
+    case 'missing': return 'That folder is not there, and Craveiro Gym could not make it. Make it on the server first.'
     case 'forbidden': return 'The server says this account may not write there.'
     case 'full': return 'The server is out of space for this account.'
     case 'network': return 'Could not reach the server. In a browser it also has to allow this site (CORS), see the guide.'
     case 'no-password': return 'Type the password again: this device does not have it.'
-    case 'not-backup': return 'That file is not an openGym backup.'
+    case 'not-backup': return 'That file is not a Craveiro Gym backup.'
     case 'empty': return 'Nothing to back up yet: log a workout first.'
     case 'foreign': return 'This backup belongs to another account'
     default: return 'The server answered with an error.'

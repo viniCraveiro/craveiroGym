@@ -84,7 +84,7 @@ export function connectionView(sync, { mobile = MOBILE, online = isOnline(), off
       }
     case 'error':
       return err.code === 'bad-response'
-        ? { tone: 'bad', icon: 'warning', action: 'retry', line: t('Not an openGym answer (HTTP {0})', err.status), banner: t('Your server’s address answered with something other than openGym (HTTP {0}). Your changes are kept here.', err.status) }
+        ? { tone: 'bad', icon: 'warning', action: 'retry', line: t('Not a Craveiro Gym answer (HTTP {0})', err.status), banner: t('Your server’s address answered with something other than Craveiro Gym (HTTP {0}). Your changes are kept here.', err.status) }
         : { tone: 'bad', icon: 'warning', action: 'retry', line: t('Server error (HTTP {0})', err.status), banner: t('Your server answered with an error (HTTP {0}). Your changes are kept here.', err.status) }
     case 'auth':
       if (!mobile) return { tone: 'bad', icon: 'lock', action: 'signin', line: t('The server refuses this browser'), banner: t('Your server no longer accepts this browser. Your changes are kept here.') }
@@ -98,7 +98,7 @@ export function connectionView(sync, { mobile = MOBILE, online = isOnline(), off
     // server it could sign in to, so it still hears that its data stays in this browser.
     default:
       // openGym Offline (lib/build-caps.js) has nothing to connect to: no button for it.
-      if (mobile && offline) return { tone: 'quiet', icon: 'lock', action: null, line: t('openGym Offline: on this phone, and only here'), banner: null }
+      if (mobile && offline) return { tone: 'quiet', icon: 'lock', action: null, line: t('Craveiro Gym Offline: on this phone, and only here'), banner: null }
       return mobile
         ? { tone: 'quiet', icon: 'lock', action: 'connect', line: t('On this phone only, not connected to a server'), banner: null }
         : { tone: 'quiet', icon: 'lock', action: canSignIn() ? 'signin' : null, line: t('Guest mode: your data lives only in this browser.'), banner: t('Guest mode: your data lives only in this browser.') }

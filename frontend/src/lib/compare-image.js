@@ -104,7 +104,7 @@ export async function renderCompare({ items, rows, aspect, mode = 'side', pct = 
   ctx.font = `600 30px ${FAMILY}`
   ctx.textBaseline = 'middle'
   ctx.textAlign = 'left'
-  ctx.fillText('openGym', PAD, L.foot)
+  ctx.fillText('Craveiro Gym', PAD, L.foot)
   if (caption) {
     ctx.fillStyle = 'rgba(255,255,255,0.6)'
     ctx.font = `500 26px ${FAMILY}`

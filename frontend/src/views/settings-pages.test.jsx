@@ -296,7 +296,7 @@ describe('the search lands on a row', () => {
     'account: gym.example', // the server's address, as the person typed it
     'account: Passkeys not supported in this browser.', 'reminders: Not supported in this browser.', // a note, not a row to change
     'equipment: Home', // the name of this test's equipment profile
-    'about: Rate openGym on the App Store', 'about: Buy me a coffee', 'about: Ko-fi', 'about: GitHub Sponsors', // links out of the app
+    'about: Rate Craveiro Gym on the App Store', 'about: Buy me a coffee', 'about: Ko-fi', 'about: GitHub Sponsors', // links out of the app
     'gym: Checking…', // the page loading
     'gym-find: Current location', // a search result, not a setting
     'voice: Try it', // plays a sample

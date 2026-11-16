@@ -30,9 +30,9 @@ describe('Settings → Garmin', () => {
     await mount(fake({ supported: true, state: 'ready', installed: true, reachable: true, devices: [{ id: '7', name: 'Forerunner 265', connected: true, installed: true }] }))
     expect(host.textContent).toContain('Forerunner 265')
     expect(host.textContent).toContain('Connected')
-    expect(host.textContent).toContain('openGym is on your Garmin. Sets you log on the wrist land here.')
+    expect(host.textContent).toContain('Craveiro Gym is on your Garmin. Sets you log on the wrist land here.')
     expect(host.textContent).toContain('Look again')
-    expect(host.textContent).not.toContain('Get openGym for Garmin')
+    expect(host.textContent).not.toContain('Get Craveiro Gym for Garmin')
   })
 
   it('on the iPhone, nothing picked: Choose watches opens Garmin Connect', async () => {
@@ -47,8 +47,8 @@ describe('Settings → Garmin', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     const api = vi.fn(async name => (name === 'garminStatus' ? { supported: true, state: 'ready', installed: false, store: true, devices: [{ id: '7', name: 'fenix 8', connected: true, installed: false }] } : { ok: true }))
     await mount(api)
-    expect(host.textContent).toContain('openGym isn’t on it yet')
-    await act(async () => { rowTitled('Get openGym for Garmin').click() })
+    expect(host.textContent).toContain('Craveiro Gym isn’t on it yet')
+    await act(async () => { rowTitled('Get Craveiro Gym for Garmin').click() })
     expect(api).toHaveBeenCalledWith('garminStore')
     expect(open).not.toHaveBeenCalled()
   })
@@ -57,7 +57,7 @@ describe('Settings → Garmin', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     // garminStore answers { ok: false }: the link is not up, or Garmin Connect said no
     await mount(fake({ supported: true, state: 'ready', installed: false, store: true, devices: [{ id: '7', name: 'fenix 8', connected: true, installed: false }] }))
-    await act(async () => { rowTitled('Get openGym for Garmin').click() })
+    await act(async () => { rowTitled('Get Craveiro Gym for Garmin').click() })
     expect(GARMIN_STORE).toBe('https://apps.garmin.com/apps/62e66310-66de-4bdd-8e40-5d2c0d853a08')
     expect(open).toHaveBeenCalledWith(GARMIN_STORE, '_blank', 'noopener,noreferrer')
   })
@@ -90,14 +90,14 @@ describe('Settings → Garmin', () => {
     expect(host.textContent).toContain('Forerunner 55')
     expect(host.textContent).toContain('Not in reach')
     expect(host.textContent).toContain('Your Garmin isn’t in reach right now.')
-    expect(host.textContent).not.toContain('Get openGym for Garmin')
+    expect(host.textContent).not.toContain('Get Craveiro Gym for Garmin')
     expect(host.textContent).toContain('Look again')
   })
 
   it('the watch has the app but is out of reach: it catches up later', async () => {
     await mount(fake({ supported: true, state: 'ready', installed: true, reachable: false, devices: [{ id: '7', name: 'Forerunner 55', connected: false, installed: true }] }))
     expect(host.textContent).toContain('It catches up as soon as the watch is in reach.')
-    expect(host.textContent).not.toContain('Get openGym for Garmin')
+    expect(host.textContent).not.toContain('Get Craveiro Gym for Garmin')
   })
 
   it('the link could not start: says so, and Look again tries once more', async () => {

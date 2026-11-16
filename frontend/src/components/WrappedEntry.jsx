@@ -22,7 +22,7 @@ export function WrappedHomeCard({ S }) {
   const year = homeCardYear(S, wrappedNow())
   if (!year) return null
   return <div className="card wr-home" data-wrapped-home>
-    <CardHead icon="sparkles" eyebrow={t('Your year in openGym')} title={<EmojiText text={t('Your {0} in openGym is ready 🎉', String(year))} />}
+    <CardHead icon="sparkles" eyebrow={t('Your year in Craveiro Gym')} title={<EmojiText text={t('Your {0} in Craveiro Gym is ready 🎉', String(year))} />}
       sub={t('Workouts, records and one very honest personality test. Tap to see your year.')}
       action={<button type="button" className="iconbtn wr-x" aria-label={t('Not now')} onClick={() => update(s => { s.wrapped = withYear(s, 'dismissed', year) })}><Icon name="xmark" /></button>} />
     <Button variant="primary" icon="sparkles" onClick={() => openWrapped(year)}>{t('Show me my year')}</Button>

@@ -28,7 +28,7 @@ export function serverAddress (remote = pairedServer(), loc = typeof location !=
 // Not in the Zepp App Store yet (Discord, jag86_ and might1338 looked for it): say so on the page,
 // with the way it installs until then.
 function StoreNote () {
-  return <Section footer={t('openGym isn’t in the Zepp App Store yet. Until it is, the watch app goes on through the Zepp app’s developer mode. The guide walks you through it.')}>
+  return <Section footer={t('Craveiro Gym isn’t in the Zepp App Store yet. Until it is, the watch app goes on through the Zepp app’s developer mode. The guide walks you through it.')}>
     <Row icon="info" iconTint="var(--blue)" title={t('Install the watch app')} accessory="chevron"
       onClick={() => window.open(ZEPP_INSTALL_DOCS, '_blank', 'noopener,noreferrer')} />
   </Section>
@@ -79,18 +79,18 @@ export default function ZeppSettingsPage ({ api = { relayLinks, relayPairCode, r
   const copy = async text => { if (await copyText(text)) useUI.getState().toast(t('Copied')) }
 
   if (!online) return <>
-    <Section footer={t('A Zepp OS watch reaches openGym through your own openGym server, since its side of the app runs inside the Zepp app and not here. Connect this phone to your server and the pairing code shows up right here.')}>
-      <Row icon="cloud" iconTint="var(--indigo)" title={t('Connect to my server')} subtitle={t('Sync this device to your own self-hosted openGym instead.')} accessory="chevron"
+    <Section footer={t('A Zepp OS watch reaches Craveiro Gym through your own Craveiro Gym server, since its side of the app runs inside the Zepp app and not here. Connect this phone to your server and the pairing code shows up right here.')}>
+      <Row icon="cloud" iconTint="var(--indigo)" title={t('Connect to my server')} subtitle={t('Sync this device to your own self-hosted Craveiro Gym instead.')} accessory="chevron"
         onClick={connectServer} />
     </Section>
     <StoreNote />
   </>
 
   return <>
-    <Section footer={err || t('Amazfit and other Zepp OS watches talk to openGym through this server. Pair one and your workouts show up on your wrist.')}>
+    <Section footer={err || t('Amazfit and other Zepp OS watches talk to Craveiro Gym through this server. Pair one and your workouts show up on your wrist.')}>
       <Row icon="watch" iconTint="var(--orange)" title={t('Pair a watch')} accessory="chevron" onClick={busy ? undefined : newCode} />
     </Section>
-    {pair && <Section title={t('Pairing code')} footer={t('In the Zepp app, open the openGym watch app’s settings and type in this address and code. The code lasts ten minutes.')}>
+    {pair && <Section title={t('Pairing code')} footer={t('In the Zepp app, open the Craveiro Gym watch app’s settings and type in this address and code. The code lasts ten minutes.')}>
       <Row icon="globe" iconTint="var(--blue)" title={t('Server address')} subtitle={<span className="zepp-copyable">{address}</span>}>
         <Button size="sm" variant="tinted" icon="copy" aria-label={t('Copy address')} title={t('Copy address')} onClick={() => copy(address)} />
       </Row>

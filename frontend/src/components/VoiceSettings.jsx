@@ -33,7 +33,7 @@ const fmtX = n => `${Math.round(n * 100) / 100}×`
 
 /** Why the microphone could not be used, as a sentence. */
 export function micErrorText(e) {
-  if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) return t('The microphone is off for openGym. Allow it in your phone’s settings and try again.')
+  if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) return t('The microphone is off for Craveiro Gym. Allow it in your phone’s settings and try again.')
   return t('No microphone here. Pick a file instead.')
 }
 

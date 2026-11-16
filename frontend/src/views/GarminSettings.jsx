@@ -11,22 +11,22 @@ import { garminView, garminDeviceLine, GARMIN_STORE } from '../lib/garmin-view.j
 
 const lineOf = key => ({
   checking: t('Checking…'),
-  build: t('This version of openGym comes without the Garmin link, since Garmin’s part of it isn’t open source. The App Store, Google Play and GitHub versions have it.'),
+  build: t('This version of Craveiro Gym comes without the Garmin link, since Garmin’s part of it isn’t open source. The App Store, Google Play and GitHub versions have it.'),
   'no-gcm': t('Garmin Connect isn’t on this phone. Install it, pair your watch there, then come back here.'),
-  'gcm-upgrade': t('Garmin Connect needs an update before openGym can talk to your watch.'),
+  'gcm-upgrade': t('Garmin Connect needs an update before Craveiro Gym can talk to your watch.'),
   error: t('Couldn’t reach Garmin Connect. Try again in a moment.'),
   pick: t('Pick your Garmin in Garmin Connect and your workouts show up on your wrist.'),
   'no-watch': t('Garmin Connect doesn’t know a watch yet. Pair yours there first.'),
-  'on-watch': t('openGym is on your Garmin. Sets you log on the wrist land here.'),
-  'on-watch-away': t('openGym is on your Garmin. It catches up as soon as the watch is in reach.'),
+  'on-watch': t('Craveiro Gym is on your Garmin. Sets you log on the wrist land here.'),
+  'on-watch-away': t('Craveiro Gym is on your Garmin. It catches up as soon as the watch is in reach.'),
   away: t('Your Garmin isn’t in reach right now. Bring it close with Bluetooth on, and this page catches up by itself.'),
-  'get-app': t('Your Garmin is here, openGym isn’t on it yet. Get it, then open it once on the watch.'),
+  'get-app': t('Your Garmin is here, Craveiro Gym isn’t on it yet. Get it, then open it once on the watch.'),
 }[key] || '')
 
 const deviceLine = d => ({
   connected: t('Connected'),
   away: t('Not in reach'),
-  'not-installed': t('openGym isn’t on it yet'),
+  'not-installed': t('Craveiro Gym isn’t on it yet'),
 }[garminDeviceLine(d)])
 
 /** `api`: the native calls (a test hands in its own). */
@@ -66,9 +66,9 @@ export default function GarminSettingsPage ({ api = garminCall }) {
     {(view.pick || view.getApp) && <Section>
       {view.pick && <Row icon={status?.picker ? 'plusCircle' : 'repeat'} iconTint="var(--blue)" accessory="chevron"
         title={status?.picker ? t('Choose watches') : t('Look again')} onClick={pick} />}
-      {view.getApp && <Row icon="download" iconTint="var(--green)" accessory="chevron" title={t('Get openGym for Garmin')} onClick={getApp} />}
+      {view.getApp && <Row icon="download" iconTint="var(--green)" accessory="chevron" title={t('Get Craveiro Gym for Garmin')} onClick={getApp} />}
     </Section>}
-    {prefs.enabled && view.key !== 'build' && <Section footer={t('Start a workout on the phone and your Garmin asks to open openGym.')}>
+    {prefs.enabled && view.key !== 'build' && <Section footer={t('Start a workout on the phone and your Garmin asks to open Craveiro Gym.')}>
       <Row icon="bolt" iconTint="var(--green)" title={t('Open on the watch')}>
         <Switch checked={prefs.autoShow} onChange={v => set({ autoShow: v })} aria-label={t('Open on the watch')} />
       </Row>

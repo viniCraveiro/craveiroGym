@@ -8,7 +8,7 @@
 // The guide (building and sideloading the watch app).
 export const GARMIN_DOCS = 'https://github.com/DuarteSantos8/openGym/blob/main/docs/GARMIN.md'
 // The watch app's page in the Connect IQ Store (the same id as GarminLink.STORE_ID / storeId):
-// where "Get openGym for Garmin" goes when Garmin Connect cannot open it itself.
+// where "Get Craveiro Gym for Garmin" goes when Garmin Connect cannot open it itself.
 export const GARMIN_STORE_ID = '62e66310-66de-4bdd-8e40-5d2c0d853a08'
 export const GARMIN_STORE = 'https://apps.garmin.com/apps/' + GARMIN_STORE_ID
 

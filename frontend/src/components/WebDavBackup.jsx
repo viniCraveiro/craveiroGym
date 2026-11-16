@@ -134,7 +134,7 @@ function WebDavManage({ cfg, close }) {
     let list
     try { list = await listBackups() } catch (e) { setBusy(false); toast(t(errorText(e))); return }
     setBusy(false)
-    if (!list.length) { toast(t('No openGym backups in that folder yet.')); return }
+    if (!list.length) { toast(t('No Craveiro Gym backups in that folder yet.')); return }
     useUI.getState().openSheet(c => <RestoreList list={list} close={c} />)
   }
   const forget = confirmForget

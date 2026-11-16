@@ -77,13 +77,13 @@ export default function Assistants() {
       <button className="iconbtn" data-back="/settings" onClick={() => nav(-1)} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, marginInlineStart: 12 }}><h1>{t('Use your subscription')}</h1></div>
     </div>
-    <p className="as-lead">{t('Already paying for Claude, ChatGPT or Gemini? Add openGym to that app as a connector. It reads your training and writes routines, on the plan you already have. No API key, no second bill.')}</p>
+    <p className="as-lead">{t('Already paying for Claude, ChatGPT or Gemini? Add Craveiro Gym to that app as a connector. It reads your training and writes routines, on the plan you already have. No API key, no second bill.')}</p>
 
     {!mcp ? <Unavailable user={user} config={config} nav={nav} /> : <>
       <Section title={t('Your server address')} footer={reach === 'public'
         ? t('Paste it where the app asks for a connector or MCP server URL.')
         : <span className="as-warn">{reach === 'http'
-          ? t('This address is plain http. The assistants only connect over https, so put openGym behind https first.')
+          ? t('This address is plain http. The assistants only connect over https, so put Craveiro Gym behind https first.')
           : t('This address only works on your home network. The assistant calls from the internet, so it needs a public https address, like a Cloudflare tunnel or a reverse proxy.')}</span>}>
         <div className="as-addr">
           <code translate="no">{address}</code>
@@ -122,7 +122,7 @@ export default function Assistants() {
             ? <><Icon name="checkCircle" /><span><b>{t('Connected via {0}', picked.name)}</b>{t('Last used {0}', fmtAgo(conn.used))}</span></>
             : conn
               ? <><Icon name="hourglass" /><span><b>{t('Signed in')}</b>{t('Waiting for {0} to call. Ask it something about your training.', picked.name)}</span></>
-              : <><Icon name="hourglass" /><span><b>{t('Not connected yet')}</b>{t('This turns green by itself once {0} has signed in and used openGym.', picked.name)}</span></>}
+              : <><Icon name="hourglass" /><span><b>{t('Not connected yet')}</b>{t('This turns green by itself once {0} has signed in and used Craveiro Gym.', picked.name)}</span></>}
         </div>
         {conn?.used ? <p className="as-try">{picked.tryIt()}</p>
           : <Button size="sm" icon="reset" disabled={checking} onClick={check}>{checking ? t('Checking…') : t('Test the connection')}</Button>}
@@ -145,18 +145,18 @@ export default function Assistants() {
 function Unavailable({ user, config, nav }) {
   const why = !user
     ? (MOBILE
-      ? t('Claude, ChatGPT and Gemini reach openGym over the internet, so they need an openGym server to talk to. This phone keeps your data to itself, so there is nothing for them to connect to yet.')
+      ? t('Claude, ChatGPT and Gemini reach Craveiro Gym over the internet, so they need a Craveiro Gym server to talk to. This phone keeps your data to itself, so there is nothing for them to connect to yet.')
       : t('Sign in first: the assistant connects to your profile on this server.'))
     : config == null ? t('Loading…')
       : t('Connectors are switched off on this server. Its admin adds COMPOSE_PROFILES=mcp and MCP=on to the .env and restarts it.')
   const setup = () => nav(MOBILE ? '/coach/setup' : '/coach')
   return <>
     <div className="as-none" role="note"><Icon name="info" /><p>{why}</p></div>
-    <Section title={t('What works right now')} footer={t('These run the openGym Coach with an AI of your choice. Nothing goes through a server of ours.')}>
+    <Section title={t('What works right now')} footer={t('These run the Craveiro Gym Coach with an AI of your choice. Nothing goes through a server of ours.')}>
       <Row icon="sparkles" iconTint="var(--indigo)" title={t('Sign in with OpenRouter')} subtitle={t('One sign-in for Claude, GPT, Gemini and more')} accessory="chevron" onClick={setup} />
       <Row icon="key" iconTint="var(--orange)" title={t('Use an API key')} subtitle={t('Got Claude Max? Your plan includes monthly API credits for a key.')} accessory="chevron" onClick={setup} />
       <Row icon="house" iconTint="var(--teal)" title={t('A model on your network')} subtitle={t('Ollama or LM Studio at home, nothing leaves your Wi-Fi')} accessory="chevron" onClick={setup} />
-      <Row icon="rocket" iconTint="var(--purple)" title={t('Run your own openGym server')} subtitle={t('Then the connectors work too. About ten minutes with Docker.')} accessory="chevron" onClick={() => open(SELF_HOSTING_DOCS)} />
+      <Row icon="rocket" iconTint="var(--purple)" title={t('Run your own Craveiro Gym server')} subtitle={t('Then the connectors work too. About ten minutes with Docker.')} accessory="chevron" onClick={() => open(SELF_HOSTING_DOCS)} />
     </Section>
   </>
 }

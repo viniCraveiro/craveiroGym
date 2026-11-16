@@ -68,8 +68,8 @@ export function StreakIconPicker ({ kind }) {
     </div>
     <div className="small muted sip-cap">{t('The colors around it follow your pick, in light and dark.')}</div>
 
-    <div className="sip-h small muted">{t('openGym icons')}</div>
-    <div className="glyph-grid sip-grid" role="radiogroup" aria-label={t('openGym icons')}>
+    <div className="sip-h small muted">{t('Craveiro Gym icons')}</div>
+    <div className="glyph-grid sip-grid" role="radiogroup" aria-label={t('Craveiro Gym icons')}>
       {pickerChoices(S, kind).map(ch => {
         const on = ch.def ? current === 'def' : current === 'icon:' + ch.v
         return <button key={ch.v} type="button" role="radio" aria-checked={on} aria-label={names[ch.v] || t('Default')}

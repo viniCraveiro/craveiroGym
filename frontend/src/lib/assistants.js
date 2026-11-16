@@ -26,10 +26,10 @@ export const ASSISTANTS = [
     plan: () => t('Any Claude plan. Free has room for one custom connector; on Team and Enterprise an Owner adds it first.'),
     steps: () => [
       t('Open Claude’s connector settings and choose Add custom connector.'),
-      t('Name it openGym and paste the server address. Leave the OAuth fields empty.'),
-      t('Press Connect. openGym asks what Claude may see and change, you say Allow.'),
+      t('Name it Craveiro Gym and paste the server address. Leave the OAuth fields empty.'),
+      t('Press Connect. Craveiro Gym asks what Claude may see and change, you say Allow.'),
     ],
-    tryIt: () => t('Ask Claude: “Look at my last month in openGym and plan my next week.”'),
+    tryIt: () => t('Ask Claude: “Look at my last month in Craveiro Gym and plan my next week.”'),
   },
   {
     id: 'chatgpt', name: 'ChatGPT', tint: 'var(--green)',
@@ -37,10 +37,10 @@ export const ASSISTANTS = [
     plan: () => t('A paid ChatGPT plan, on the web. Business and Enterprise workspaces decide whether members may add their own.'),
     steps: () => [
       t('Open ChatGPT’s plugins, press the plus and choose Add custom MCP server.'),
-      t('Name it openGym, paste the server address and pick OAuth.'),
-      t('Sign in when ChatGPT sends you to openGym, choose what it may use, then Allow.'),
+      t('Name it Craveiro Gym, paste the server address and pick OAuth.'),
+      t('Sign in when ChatGPT sends you to Craveiro Gym, choose what it may use, then Allow.'),
     ],
-    tryIt: () => t('Ask ChatGPT: “Using openGym, how did my bench press go this month?”'),
+    tryIt: () => t('Ask ChatGPT: “Using Craveiro Gym, how did my bench press go this month?”'),
   },
   {
     id: 'gemini', name: 'Gemini', tint: 'var(--blue)', limited: true,
@@ -49,9 +49,9 @@ export const ASSISTANTS = [
     steps: () => [
       t('In the Gemini web app open Settings & help, then Connected apps.'),
       t('Choose Add a custom app and paste the server address.'),
-      t('Sign in to openGym when Gemini asks, pick what it may use and Allow.'),
+      t('Sign in to Craveiro Gym when Gemini asks, pick what it may use and Allow.'),
     ],
-    tryIt: () => t('Ask Gemini: “Make me a 3-day routine in openGym with what I already train.”'),
+    tryIt: () => t('Ask Gemini: “Make me a 3-day routine in Craveiro Gym with what I already train.”'),
   },
 ]
 export const assistantById = id => ASSISTANTS.find(a => a.id === id) || null
