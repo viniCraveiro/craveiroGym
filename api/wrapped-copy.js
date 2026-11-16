@@ -2,107 +2,107 @@
 // Do not edit by hand: change the frontend strings and run the script again.
 export const WRAPPED_COPY = {
   "en": {
-    "title": "Your {0} in openGym is ready 🎉",
+    "title": "Your {0} in Craveiro Gym is ready 🎉",
     "body": "Workouts, records and one very honest personality test. Tap to see your year."
   },
   "ar": {
-    "title": "سنة {0} في openGym جاهزة 🎉",
+    "title": "سنة {0} في Craveiro Gym جاهزة 🎉",
     "body": "تمارين، أرقام قياسية، واختبار شخصية صريح جدًا. اضغط لترى سنتك."
   },
   "bn": {
-    "title": "openGym-এ আপনার {0} তৈরি 🎉",
+    "title": "Craveiro Gym-এ আপনার {0} তৈরি 🎉",
     "body": "ওয়ার্কআউট, রেকর্ড আর একটা খুবই সৎ পার্সোনালিটি টেস্ট। আপনার বছর দেখতে ট্যাপ করুন।"
   },
   "cs": {
-    "title": "Tvůj rok {0} v openGym je hotový 🎉",
+    "title": "Tvůj rok {0} v Craveiro Gym je hotový 🎉",
     "body": "Tréninky, rekordy a jeden hodně upřímný test osobnosti. Klepni a podívej se na svůj rok."
   },
   "da": {
-    "title": "Dit {0} i openGym er klar 🎉",
+    "title": "Dit {0} i Craveiro Gym er klar 🎉",
     "body": "Træninger, rekorder og én meget ærlig personlighedstest. Tryk for at se dit år."
   },
   "de": {
-    "title": "Dein {0} in openGym ist fertig 🎉",
+    "title": "Dein {0} in Craveiro Gym ist fertig 🎉",
     "body": "Trainings, Rekorde und ein sehr ehrlicher Persönlichkeitstest. Tipp, um dein Jahr zu sehen."
   },
   "es": {
-    "title": "Tu {0} en openGym está listo 🎉",
+    "title": "Tu {0} en Craveiro Gym está listo 🎉",
     "body": "Entrenos, récords y un test de personalidad muy sincero. Toca para ver tu año."
   },
   "fa": {
-    "title": "{0} شما در openGym آماده است 🎉",
+    "title": "{0} شما در Craveiro Gym آماده است 🎉",
     "body": "تمرینات، رکوردها و یک تست شخصیت خیلی صادقانه. بزنید تا سالتان را ببینید."
   },
   "fr": {
-    "title": "Ton année {0} sur openGym est prête 🎉",
+    "title": "Ton année {0} sur Craveiro Gym est prête 🎉",
     "body": "Séances, records et un test de personnalité très honnête. Touche pour voir ton année."
   },
   "hi": {
-    "title": "openGym में आपका {0} तैयार है 🎉",
+    "title": "Craveiro Gym में आपका {0} तैयार है 🎉",
     "body": "वर्कआउट, रिकॉर्ड और एक बहुत ईमानदार पर्सनैलिटी टेस्ट। अपना साल देखने के लिए टैप करें।"
   },
   "hu": {
-    "title": "Elkészült az éved az openGymben: {0} 🎉",
+    "title": "Elkészült az éved az Craveiro Gymben: {0} 🎉",
     "body": "Edzések, rekordok és egy nagyon őszinte személyiségteszt. Koppints, és nézd meg az évedet."
   },
   "id": {
-    "title": "Tahun {0}-mu di openGym sudah siap 🎉",
+    "title": "Tahun {0}-mu di Craveiro Gym sudah siap 🎉",
     "body": "Sesi latihan, rekor, dan satu tes kepribadian yang sangat jujur. Ketuk untuk melihat kilas balik tahunmu."
   },
   "it": {
-    "title": "Il tuo {0} su openGym è pronto 🎉",
+    "title": "Il tuo {0} su Craveiro Gym è pronto 🎉",
     "body": "Allenamenti, record e un test della personalità molto onesto. Tocca per vedere il tuo anno."
   },
   "ko": {
-    "title": "openGym에서 보낸 {0}년이 준비됐어요 🎉",
+    "title": "Craveiro Gym에서 보낸 {0}년이 준비됐어요 🎉",
     "body": "운동, 기록, 그리고 아주 솔직한 성격 테스트 하나. 탭해서 한 해를 확인하세요."
   },
   "lt": {
-    "title": "Jūsų {0} „openGym“ paruošta 🎉",
+    "title": "Jūsų {0} „Craveiro Gym“ paruošta 🎉",
     "body": "Treniruotės, rekordai ir vienas labai sąžiningas asmenybės testas. Paspauskite, kad pamatytumėte savo metus."
   },
   "pl": {
-    "title": "Twój rok {0} w openGym jest gotowy 🎉",
+    "title": "Twój rok {0} w Craveiro Gym jest gotowy 🎉",
     "body": "Treningi, rekordy i jeden bardzo szczery test osobowości. Stuknij, żeby zobaczyć swój rok."
   },
   "pt": {
-    "title": "O teu {0} no openGym está pronto 🎉",
+    "title": "O teu {0} no Craveiro Gym está pronto 🎉",
     "body": "Treinos, recordes e um teste de personalidade muito sincero. Toca para veres o teu ano."
   },
   "pt-BR": {
-    "title": "Seu {0} no openGym está pronto 🎉",
+    "title": "Seu {0} no Craveiro Gym está pronto 🎉",
     "body": "Treinos, recordes e um teste de personalidade bem sincero. Toque para ver seu ano."
   },
   "ru": {
-    "title": "Твой {0} в openGym готов 🎉",
+    "title": "Твой {0} в Craveiro Gym готов 🎉",
     "body": "Тренировки, рекорды и один очень честный тест на характер. Нажми, чтобы увидеть свой год."
   },
   "sv": {
-    "title": "Ditt {0} i openGym är klart 🎉",
+    "title": "Ditt {0} i Craveiro Gym är klart 🎉",
     "body": "Pass, rekord och ett väldigt ärligt personlighetstest. Tryck för att se ditt år."
   },
   "th": {
-    "title": "ปี {0} ของคุณใน openGym พร้อมแล้ว 🎉",
+    "title": "ปี {0} ของคุณใน Craveiro Gym พร้อมแล้ว 🎉",
     "body": "การฝึก สถิติ และแบบทดสอบบุคลิกที่จริงใจสุด ๆ อีกหนึ่งอัน แตะเพื่อดูปีของคุณ"
   },
   "tr": {
-    "title": "openGym’de {0} yılın hazır 🎉",
+    "title": "Craveiro Gym’de {0} yılın hazır 🎉",
     "body": "Antrenmanlar, rekorlar ve çok dürüst bir kişilik testi. Yılını görmek için dokun."
   },
   "uk": {
-    "title": "Твій {0} в openGym готовий 🎉",
+    "title": "Твій {0} в Craveiro Gym готовий 🎉",
     "body": "Тренування, рекорди й один дуже чесний тест на характер. Торкнись, щоб побачити свій рік."
   },
   "vi": {
-    "title": "Năm {0} của bạn với openGym đã sẵn sàng 🎉",
+    "title": "Năm {0} của bạn với Craveiro Gym đã sẵn sàng 🎉",
     "body": "Buổi tập, kỷ lục và một bài trắc nghiệm tính cách rất thật thà. Chạm để xem năm của bạn."
   },
   "zh": {
-    "title": "你在 openGym 的 {0} 年已准备好 🎉",
+    "title": "你在 Craveiro Gym 的 {0} 年已准备好 🎉",
     "body": "训练、纪录，外加一个非常诚实的性格测试。点一下看看你的一年。"
   },
   "zh-TW": {
-    "title": "你在 openGym 的 {0} 年準備好了 🎉",
+    "title": "你在 Craveiro Gym 的 {0} 年準備好了 🎉",
     "body": "訓練、紀錄，再加一個非常誠實的性格測驗。點一下看看你的一年。"
   }
 };
