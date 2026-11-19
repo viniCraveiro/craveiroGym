@@ -53,6 +53,20 @@ public class HealthWriteTest {
     }
 
     @Test
+    public void theWatchsHeartRateCurveWithItsPermission() throws Exception {
+        long st = NOW - 2 * HOUR, en = NOW - HOUR;
+        JSONArray hr = new JSONArray().put(new JSONArray().put(st + 1000).put(120)).put(new JSONArray().put(st + 11000).put(130))
+                .put(new JSONArray().put(st - 5000).put(99)).put(new JSONArray().put(st + 21000).put(999));
+        JSONObject s = session("opengym-w-1", st, en).put("hr", hr);
+        HealthWrite.Batch b = HealthWrite.build(new JSONArray().put(s), new JSONArray(), false, true, 1, NOW);
+        assertEquals(2, b.records.size());
+        androidx.health.connect.client.records.HeartRateRecord h = (androidx.health.connect.client.records.HeartRateRecord) b.records.get(1);
+        assertEquals(2, h.getSamples().size());
+        assertEquals(130, h.getSamples().get(1).getBeatsPerMinute());
+        assertEquals(1, HealthWrite.build(new JSONArray().put(s), new JSONArray(), false, false, 1, NOW).records.size());
+    }
+
+    @Test
     public void caloriesOnlyWithThePermission() throws Exception {
         assertEquals(1, build(false, session("a", NOW - 2 * HOUR, NOW - HOUR).put("kcal", 320)).records.size());
     }

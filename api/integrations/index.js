@@ -15,6 +15,10 @@
  *   connect(input) -> { label, events, info, secrets, reveal }   validate a form, say what to store
  *   update(input) -> patch                                       label / events / paused
  *   deliver(job, reveal) -> { ok, retry, retryAfterMs, gone, status, ms, code, msg }
+ *   delayMs (optional): how long a job waits before its first try (Strava: what the watch and
+ *     the health hub send after the finish, the heart-rate curve, gets there meanwhile)
+ *   fresh (optional): at delivery the workout is read again from the profile (`readDoc`), as it
+ *     is then, curve included, and handed over in extras.workout (null: it was deleted)
  *
  * The OAuth kind (Strava, PR #478, next) adds authorizeUrl(uid, state) and callback(query) for a
  * GET /api/integrations/oauth/callback route, and refresh(reveal) for an expired token; the
@@ -24,7 +28,7 @@ import crypto from 'node:crypto';
 import { createStore } from './store.js';
 import { createOutbox, createBuckets } from './outbox.js';
 import { deriveKey, newId } from './crypto.js';
-import { detectEvents, eventData, envelope, testData, EVENTS } from './events.js';
+import { detectEvents, eventData, envelope, testData, workoutPayload, EVENTS } from './events.js';
 import { webhookProvider } from './providers/webhook.js';
 import { stravaProvider } from './providers/strava.js';
 
@@ -43,7 +47,7 @@ export function enabledIds(env, known) {
 
 export const OAUTH_STATE_MS = 10 * 60_000;
 
-export function createIntegrations({ dataDir, secret, env = process.env, now = Date.now, transport = null, fetchFn = globalThis.fetch, version = 'dev' }) {
+export function createIntegrations({ dataDir, secret, env = process.env, now = Date.now, transport = null, fetchFn = globalThis.fetch, version = 'dev', readDoc = null }) {
   const allowLan = on(env.INTEGRATIONS_ALLOW_LAN);
   const all = { webhook: webhookProvider({ allowLan, transport, version }), strava: stravaProvider({ env, fetchFn, now }) };
   const ids = enabledIds(env, Object.keys(all)).filter(id => {
@@ -68,7 +72,7 @@ export function createIntegrations({ dataDir, secret, env = process.env, now = D
         const rec = store.get(job.uid, job.conn);
         if (!p || !rec) return { ok: false, retry: false, code: 'gone', msg: 'Disconnected.' };
         if (rec.paused) return { defer: 3600_000 };
-        return p.deliver(job, name => store.reveal(job.uid, rec, name), extras(job.uid, rec));
+        return p.deliver(job, name => store.reveal(job.uid, rec, name), { ...extras(job.uid, rec), ...(p.fresh ? current(job) : {}) });
       },
       rateOf: job => {
         const p = providers[job.provider];
@@ -86,6 +90,18 @@ export function createIntegrations({ dataDir, secret, env = process.env, now = D
     info: { ...rec.info },
     reseal: map => store.update(uid, rec.id, r => { for (const [k, v] of Object.entries(map)) r.secrets[k] = store.seal(uid, rec.id, k, v); }),
   });
+
+  // The workout of a job as the profile has it now (a provider with `fresh`), with the profile's
+  // language. Nothing when the profile cannot be read: the job's own copy is used.
+  const current = job => {
+    const wid = job.payload?.data?.workout?.id;
+    if (!readDoc || !wid) return {};
+    let doc = null;
+    try { doc = readDoc(job.uid); } catch { /* unreadable: the copy in the job */ }
+    if (!doc || typeof doc !== 'object') return {};
+    const w = (Array.isArray(doc.workouts) ? doc.workouts : []).find(x => x && String(x.id) === String(wid));
+    return { workout: w ? workoutPayload(w, doc, { series: true }) : null, lang: typeof doc.lang === 'string' ? doc.lang : null };
+  };
 
   // The OAuth `state`: who asked, for which provider, until when, signed with a key of its own.
   // A nonce is taken once, so a callback link cannot be replayed.
@@ -269,6 +285,7 @@ export function createIntegrations({ dataDir, secret, env = process.env, now = D
           const r = outbox.enqueue({
             id: eid, key: `${c.provider}:${uid}:${c.id}:${ev.type}:${ev.entity}`, uid, conn: c.id, provider: c.provider, ev: ev.type,
             payload: envelope({ id: eid, type: ev.type, data: eventData(ev, next), at: ev.at }),
+            delayMs: providers[c.provider].delayMs || 0,
           });
           if (r === 'queued') n++;
           else if (r === 'full') settle(uid, c.id, ev.type, { ok: false, msg: 'Too much waiting to be sent, this one was skipped.' }, false);

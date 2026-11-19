@@ -3,6 +3,7 @@ package ch.duartesantos.opengym;
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord;
 import androidx.health.connect.client.records.ExerciseSegment;
 import androidx.health.connect.client.records.ExerciseSessionRecord;
+import androidx.health.connect.client.records.HeartRateRecord;
 import androidx.health.connect.client.records.Record;
 import androidx.health.connect.client.records.WeightRecord;
 import androidx.health.connect.client.records.metadata.Metadata;
@@ -91,6 +92,10 @@ final class HealthWrite {
 
     /** Every record of these sessions and weigh-ins that Health Connect takes. */
     static Batch build(JSONArray sessions, JSONArray weights, boolean withKcal, long version, long now) {
+        return build(sessions, weights, withKcal, false, version, now);
+    }
+
+    static Batch build(JSONArray sessions, JSONArray weights, boolean withKcal, boolean withHr, long version, long now) {
         Batch b = new Batch();
         for (int i = 0; sessions != null && i < sessions.length(); i++) {
             JSONObject s = sessions.optJSONObject(i);
@@ -102,6 +107,10 @@ final class HealthWrite {
                 if (withKcal) {
                     ActiveCaloriesBurnedRecord k = calories(s, version, now);
                     if (k != null) b.add(k, id);
+                }
+                if (withHr) {
+                    HeartRateRecord h = heartRate(s, version, now);
+                    if (h != null) b.add(h, id);
                 }
             } catch (RuntimeException e) {
                 // Health Connect's own checks (IllegalArgumentException) or a value of the wrong type.
@@ -239,6 +248,31 @@ final class HealthWrite {
         Instant end = Instant.ofEpochMilli(endMs);
         return new ActiveCaloriesBurnedRecord(start, offsetAt(start), end, offsetAt(end),
                 Energy.kilocalories(kcal), Metadata.manualEntry(id + "-kcal", version));
+    }
+
+    /**
+     * The heart-rate curve the watch measured during the session (`hr`: [[ms, bpm], ...], from
+     * lib/health-connect.js), or null without one. Only samples inside the session, 1 to 300 bpm.
+     */
+    static HeartRateRecord heartRate(JSONObject s, long version, long now) {
+        String id = id(s);
+        Long startMs = time(s, "start", now), endMs = time(s, "end", now);
+        JSONArray hr = s == null ? null : s.optJSONArray("hr");
+        if (id == null || startMs == null || endMs == null || hr == null || endMs <= startMs || endMs - startMs > ENERGY_SPAN_MS) return null;
+        List<HeartRateRecord.Sample> samples = new ArrayList<>();
+        long last = Long.MIN_VALUE;
+        for (int i = 0; i < hr.length(); i++) {
+            JSONArray p = hr.optJSONArray(i);
+            if (p == null || p.length() < 2) continue;
+            long t = p.optLong(0, -1), bpm = Math.round(p.optDouble(1, -1));
+            if (t < startMs || t > endMs || t <= last || bpm < 1 || bpm > 300) continue;
+            samples.add(new HeartRateRecord.Sample(Instant.ofEpochMilli(t), bpm));
+            last = t;
+        }
+        if (samples.size() < 2) return null;
+        Instant start = Instant.ofEpochMilli(startMs);
+        Instant end = Instant.ofEpochMilli(endMs);
+        return new HeartRateRecord(start, offsetAt(start), end, offsetAt(end), samples, Metadata.manualEntry(id + "-hr", version));
     }
 
     /** The weigh-in, or null when it is not one Health Connect takes. */

@@ -109,6 +109,14 @@ describe('sessionRecord', () => {
     })
   })
   it('leaves out a workout without real times instead of inventing them', () => {
+    // Craveiro Gym: the watch's calories over the estimate, and its heart-rate curve when allowed.
+    const measured = workout([strength], { kcal: 287.6, hrs: { t0: at(18), dt: 10, v: [0, 120, 130], src: 'watch' } })
+    const withAll = sessionRecord(measured, { unit: 'kg', nameOf, kg: 80, energy: true, hr: true })
+    expect(withAll.kcal).toBe(288)
+    expect(withAll.hr).toEqual([[at(18) + 10000, 120], [at(18) + 20000, 130]])
+    expect(sessionRecord(measured, { unit: 'kg', nameOf, kg: 80, energy: true }).hr).toBeUndefined()
+    expect(sessionRecord({ ...measured, hrs: { ...measured.hrs, src: 'hc' } }, { unit: 'kg', nameOf, hr: true }).hr).toBeUndefined()
+    expect(sessionRecord(measured, { unit: 'kg', nameOf }).kcal).toBeUndefined()
     expect(sessionRecord(workout([strength], { start: undefined }), { unit: 'kg', nameOf })).toBeNull()
     expect(sessionRecord(workout([strength], { end: at(18) }), { unit: 'kg', nameOf })).toBeNull()
     expect(sessionRecord(workout([strength], { id: undefined }), { unit: 'kg', nameOf })).toBeNull()

@@ -13,7 +13,7 @@
 //   - openGym's own records in the hub (what it wrote there itself) are never read back as new;
 //   - an imported weigh-in carries `src` and is never written back to the hub (no ping-pong:
 //     lib/health-connect.js healthRecords leaves it out).
-import { hrFromSamples, sanitizeHr } from './heart-rate.js'
+import { hrFromSamples, sanitizeHr, seriesFromSamples } from './heart-rate.js'
 import { stampWorkout } from './sync-merge.js'
 import { isoOf } from './format.js'
 import { addWeighIn, readingsOf, timeOf, hashId } from './weigh-ins.js'
@@ -56,6 +56,17 @@ export function mergeHeartRate(S, wid, samples, src, now = Date.now()) {
     const fuller = !cur || (cur.src === src && res.n > (Number(cur.n) || 0))
     if (fuller && cur?.src !== 'watch') {
       w.hr = { ...res.session, src, n: res.n }
+      changed = true
+    }
+  }
+  // The curve (heart-rate.js seriesFromSamples), for Strava's chart: one the watch sent is kept,
+  // one from the hub is replaced by a fuller read, as the session's reading above.
+  const curve = seriesFromSamples(samples, w.start, w.end)
+  if (curve) {
+    const n = curve.v.filter(Boolean).length
+    const cur = w.hrs && typeof w.hrs === 'object' ? w.hrs : null
+    if (cur?.src !== 'watch' && (!cur || (cur.src === src && n > (Number(cur.n) || 0)))) {
+      w.hrs = { ...curve, src, n }
       changed = true
     }
   }

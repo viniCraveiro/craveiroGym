@@ -138,13 +138,29 @@ async function kcalAllowed(p, h) {
   return { kcal: res?.calories === true, h: out }
 }
 
+// Whether the hub lets openGym write the watch's heart-rate curve (Health Connect only, Craveiro
+// Gym): asked once, as the calories are, while the app is on screen.
+async function hrWriteAllowed(p, h) {
+  if (p.platform !== 'android') return { hr: false, h }
+  const st = await p.HC.status().catch(() => null)
+  if (st?.heartRateWrite === true) return { hr: true, h }
+  const onScreen = typeof document === 'undefined' || document.visibilityState !== 'hidden'
+  if (st?.heartRateWrite !== false || !st.granted || h.hrWriteAsked || !onScreen) return { hr: false, h }
+  const res = await p.HC.requestPermissions({ read: [], write: ['heartRate'] }).catch(() => null)
+  const out = { ...h, hrWriteAsked: true }
+  await saveHealth(out)
+  return { hr: res?.heartRateWrite === true, h: out }
+}
+
 async function syncOnce(S, h) {
   const p = await plugin()
   if (!p) return h
   const allowed = await kcalAllowed(p, h)
   h = allowed.h
+  const hrw = await hrWriteAllowed(p, h)
+  h = hrw.h
   // Segments (the sets, #816) only for Health Connect. Adding them rewrites each workout once.
-  const plan = planSync(healthRecords(S, { nameOf, speedUnit: speedUnitOf(S), kcal: allowed.kcal, segments: p.platform === 'android' }), h.written, goneIds(S))
+  const plan = planSync(healthRecords(S, { nameOf, speedUnit: speedUnitOf(S), kcal: allowed.kcal, hr: hrw.hr, segments: p.platform === 'android' }), h.written, goneIds(S))
   const nothing = !plan.sessions.length && !plan.weights.length && !plan.remove.sessions.length && !plan.remove.weights.length
   if (nothing) {
     if (!h.error) return h

@@ -136,7 +136,7 @@ function sessionNotes(w, opts) {
  * its start) is left out rather than given made-up times: Health Connect needs both. So is one the
  * stores would refuse (see EPOCH_MS above): before 2001, ahead of the clock, longer than a week.
  */
-export function sessionRecord(w, { unit, nameOf, speedUnit, kg = null, segments = false, customEx = [], now = Date.now() }) {
+export function sessionRecord(w, { unit, nameOf, speedUnit, kg = null, energy = false, hr = false, segments = false, customEx = [], now = Date.now() }) {
   const start = Number(w?.start), end = Number(w?.end)
   if (!w?.id || !healthTime(start, now) || !healthTime(end, now) || !(end > start) || end - start > MAX_SESSION_MS) return null
   const long = end - start > ENERGY_SPAN_MS
@@ -147,11 +147,20 @@ export function sessionRecord(w, { unit, nameOf, speedUnit, kg = null, segments 
     title: clip(String(w.name || '').trim()),
     notes: sessionNotes(w, { unit, nameOf, speedUnit }),
   }
-  // The estimated active energy (lib/active-energy.js), only when the hub lets openGym write it:
-  // `kg` is then the body weight to work it out with.
-  // A workout longer than a day: no calories (nor segments), see ENERGY_SPAN_MS.
-  const kcal = kg > 0 && !long ? activeKcal(w, kg) : null
+  // The active energy, only when the hub lets openGym write it (`kg` is then the body weight, or
+  // `energy` says so): what the Wear OS watch measured (w.kcal), else the estimate
+  // (lib/active-energy.js). A workout longer than a day: no calories (nor segments), see ENERGY_SPAN_MS.
+  const measured = Number(w.kcal) > 0 ? Math.round(Number(w.kcal)) : null
+  const kcal = long || !(energy || kg > 0) ? null : measured || (kg > 0 ? activeKcal(w, kg) : null)
   if (Number.isFinite(kcal) && kcal > 0 && kcal <= MAX_KCAL) rec.kcal = kcal
+  // The heart-rate curve the Wear OS watch measured (lib/heart-rate.js `hrs`), when the hub lets
+  // openGym write heart rate: [ms, bpm] inside the session. Never one read from the hub itself.
+  if (hr && !long && w.hrs?.src === 'watch' && Array.isArray(w.hrs.v)) {
+    const t0 = Number(w.hrs.t0), dt = Number(w.hrs.dt) * 1000
+    const pts = []
+    w.hrs.v.forEach((b, i) => { const t = t0 + i * dt; if (b > 0 && t >= start && t <= end) pts.push([t, b]) })
+    if (pts.length >= 2) rec.hr = pts
+  }
   // Health Connect (Android) takes the sets as segments of a strength session (lib/health-segments.js).
   // Only there: Apple Health has no such thing, and an iPhone's records stay as they were written.
   if (segments && !long && rec.type === 'strength_training') {
@@ -198,13 +207,13 @@ function localMorning(iso) {
 export const isImportedWorkout = w => w?.src === 'import' || /^iw[0-9a-z]+$/.test(String(w?.id || ''))
 
 /** Everything the state has to give Health Connect: { sessions, weights }. */
-export function healthRecords(S, { nameOf, speedUnit, kcal = false, segments = false, now = Date.now() }) {
+export function healthRecords(S, { nameOf, speedUnit, kcal = false, hr = false, segments = false, now = Date.now() }) {
   const unit = S?.unit === 'lb' ? 'lb' : 'kg'
   // `kcal`: the hub allows active energy, so every session carries its estimate. A change of that
   // permission changes the records, so the next sync writes them all again, with or without.
   return {
     sessions: (S?.workouts || []).filter(w => !isImportedWorkout(w))
-      .map(w => sessionRecord(w, { unit, nameOf, speedUnit, kg: kcal ? bodyKgFor(S, w) : null, segments, customEx: S?.customEx, now })).filter(Boolean),
+      .map(w => sessionRecord(w, { unit, nameOf, speedUnit, kg: kcal ? bodyKgFor(S, w) : null, energy: kcal, hr, segments, customEx: S?.customEx, now })).filter(Boolean),
     // A weigh-in read from the hub (`src`, lib/health-read.js) is already there: never written back.
     // Every weigh-in of a day with several (lib/weigh-ins.js), each at its own time.
     weights: (S?.bodyweight || []).flatMap(b => (Array.isArray(b?.ins)

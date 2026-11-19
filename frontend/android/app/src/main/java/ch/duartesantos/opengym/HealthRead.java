@@ -153,6 +153,7 @@ final class HealthRead {
             case "exercise": return "android.permission.health.WRITE_EXERCISE";
             case "weight": return "android.permission.health.WRITE_WEIGHT";
             case "calories": return "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED";
+            case "heartRate": return "android.permission.health.WRITE_HEART_RATE";
             default: return null;
         }
     }

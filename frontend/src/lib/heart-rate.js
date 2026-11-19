@@ -154,3 +154,83 @@ export function hrFromSamples(w, samples) {
   })
   return out
 }
+
+/* ------------------------------------------------------ the session's heart-rate curve -- */
+//
+// The whole workout's heart rate as a curve (`w.hrs`), for Strava's chart and Relative Effort
+// (api/integrations/providers/strava.js uploads it as a file). Compact on purpose, as it syncs
+// with the workout: one average per `dt` seconds from `t0`, 0 where there was no reading.
+//
+//   hrs  { t0, dt, v: [bpm | 0, ...], src, n }   src: 'watch' (the Wear OS app measured it live)
+//                                                 | 'hc' | 'ah' (read back from the health hub)
+
+export const SERIES_DT = 10
+// Six hours at ten seconds: a forgotten workout does not grow the document without end.
+export const SERIES_MAX = 2160
+
+/** A stored curve, checked: { t0, dt, v } with every value 0 or a plausible bpm, or null. */
+export function sanitizeSeries(x) {
+  if (!x || typeof x !== 'object') return null
+  const t0 = Math.round(Number(x.t0)), dt = Math.round(Number(x.dt))
+  if (!(t0 > 0) || !(dt >= 1 && dt <= 60) || !Array.isArray(x.v) || !x.v.length) return null
+  const v = x.v.slice(0, SERIES_MAX).map(b => {
+    const n = Math.round(Number(b))
+    return n >= BPM_MIN && n <= BPM_MAX ? n : 0
+  })
+  if (v.filter(Boolean).length < 2) return null
+  return { t0, dt, v }
+}
+
+/**
+ * The curve of a workout from [ms, bpm] samples between `start` and `end`: the average of each
+ * `dt`-second slot, 0 for a slot without one. Null when the samples are too sparse to draw a
+ * workout with (a band that saves one reading every ten minutes): fewer than ten slots filled, or
+ * readings further apart than SPARSE_GAP_MS in the median.
+ */
+export function seriesFromSamples(samples, start, end, dt = SERIES_DT) {
+  start = Number(start); end = Number(end)
+  if (!(start > 0) || !(end > start)) return null
+  const all = cleanSamples(samples).filter(([t]) => t >= start && t <= end)
+  if (all.length < 10) return null
+  const gaps = []
+  for (let i = 1; i < all.length; i++) gaps.push(all[i][0] - all[i - 1][0])
+  gaps.sort((a, b) => a - b)
+  if (gaps[gaps.length >> 1] > SPARSE_GAP_MS) return null
+  const slots = Math.min(SERIES_MAX, Math.floor((end - start) / (dt * 1000)) + 1)
+  const sum = new Array(slots).fill(0), cnt = new Array(slots).fill(0)
+  for (const [t, bpm] of all) {
+    const i = Math.floor((t - start) / (dt * 1000))
+    if (i < 0 || i >= slots) continue
+    sum[i] += bpm; cnt[i]++
+  }
+  const v = sum.map((s, i) => (cnt[i] ? Math.round(s / cnt[i]) : 0))
+  if (v.filter(Boolean).length < 10) return null
+  return { t0: Math.round(start), dt, v }
+}
+
+/**
+ * The watch's curve for a finished workout (watch-sync.js `hrSeries`) put into the log `S`
+ * (mutated): onto the saved workout `wid`, replacing one read from the hub (the watch measured it
+ * live, the hub's is often sparser), never one the watch sent before unless this one is fuller.
+ * The workout's calories (Health Services' total) too, when it has none. Stamped as edited, so a
+ * sync keeps the change. Returns true when written, false when nothing changed, null when there is
+ * no such saved workout (yet).
+ */
+export function applyHrSeries(S, { wid, t0, dt, v, kcal } = {}, stamp = null) {
+  const w = (S?.workouts || []).find(x => x && x.id === wid)
+  if (!w) return null
+  let changed = false
+  const got = sanitizeSeries({ t0, dt, v })
+  if (got) {
+    const n = got.v.filter(Boolean).length
+    const cur = w.hrs && typeof w.hrs === 'object' ? w.hrs : null
+    if (!cur || cur.src !== 'watch' || n > (Number(cur.n) || 0)) {
+      w.hrs = { ...got, src: 'watch', n }
+      changed = true
+    }
+  }
+  const k = Math.round(Number(kcal))
+  if (k > 0 && k < 10000 && !(Number(w.kcal) > 0)) { w.kcal = k; changed = true }
+  if (changed && stamp) stamp(w)
+  return changed
+}

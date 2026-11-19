@@ -106,7 +106,7 @@ export function createOutbox({ file, deliver, rateOf = () => [], onSettled = () 
     if (body.length > PAYLOAD_MAX) return 'full';
     st.jobs.push({
       id: job.id, key: job.key, uid: job.uid, conn: job.conn, provider: job.provider, ev: job.ev,
-      payload: job.payload ?? null, attempts: 0, createdAt: now(), nextAt: now(),
+      payload: job.payload ?? null, attempts: 0, createdAt: now(), nextAt: now() + Math.max(0, Number(job.delayMs) || 0),
     });
     persist();
     soon();

@@ -125,7 +125,9 @@ Headers: `Content-Type: application/json`, `User-Agent: openGym-Webhook/1`,
 
 Only completed sets are listed. A set can carry `weight`, `reps`, `seconds` (a timed set),
 `minutes`, `speedKmh`, `distanceKm` (when logged by distance) and `incline` (cardio), `rpe` or `rir`, `warmup: true`, or `sides` with
-`left` and `right` for per-side sets. `totals` counts work sets only. Weights are in `unit`.
+`left` and `right` for per-side sets, and when a watch measured them `heartRate` and
+`restHeartRate` (`{ avg, max }` in bpm) and `doneAt`. The workout itself can carry `heartRate`
+and `calories`. `totals` counts work sets only. Weights are in `unit`.
 Exercise names are the catalogue's English names, or your own for custom exercises. At most 60
 exercises with 50 sets each; `note` is cut at 500 characters.
 
@@ -206,6 +208,15 @@ nothing is read back from Strava. Idea by @workhardbekind (#478).
 - Settings → Integrations → Strava → **Connect** (in a browser signed in to your server: the
   Strava sign-in comes back to the server's address). The phone apps then upload through the same
   connection.
+- **With a heart rate it goes up as a file**, so Strava draws the heart-rate chart and works out
+  Relative Effort: the whole curve the Wear OS watch measured (or the one the phone read from
+  Health Connect), else the average and peak of each set the watch measured. Without one it is a
+  manual activity, as before. The description lists each exercise with its sets (and each set's
+  heart rate), the muscles worked, volume, records, the session's heart rate and calories, in
+  the profile's language (English or Portuguese, or `STRAVA_LANG` for everyone).
+- A workout goes up 10 minutes after it was saved (`STRAVA_DELAY_MIN`), as it is then: the
+  watch's curve and Health Connect's readings get there after the finish.
+- Photos cannot go up: Strava's API does not take them from apps like this one.
 - Only workouts finished after connecting and in the last seven days are sent, each once. A
   restored backup or an import of old sessions does not flood Strava.
 - **Disconnect** forgets the tokens on your server. It does not revoke the Strava app (that would

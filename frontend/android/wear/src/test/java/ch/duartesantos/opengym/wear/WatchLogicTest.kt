@@ -29,6 +29,21 @@ class WatchLogicTest {
 
     /* ---------- Plan ---------- */
 
+    @Test fun theHeartRateCurveAveragesTenSecondSlotsWithZerosForGaps() {
+        val t0 = 1_800_000_000_000L
+        val xs = (0 until 30).map { (t0 + it * 5_000L) to 120 } + listOf((t0 + 400_000L) to 150, (t0 + 405_000L) to 152, (t0 + 1_000L) to 999)
+        val v = Metrics.series(xs, t0, t0 + 410_000L)!!
+        assertEquals(42, v.size)
+        assertEquals(120, v[0])
+        assertEquals(0, v[20])
+        assertEquals(151, v[40])
+        assertNull(Metrics.series(xs.take(5), t0, t0 + 410_000L))
+        val ev = SessionCore.hrSeriesEvent("watch-1", t0 + 410_000L, "e1", t0, v, 312.4)!!
+        assertEquals("hrSeries", ev["type"]!!.jsonPrimitive.content)
+        assertEquals("312", ev["kcal"]!!.jsonPrimitive.content)
+        assertNull(SessionCore.hrSeriesEvent("watch-1", t0, "e2", t0, null, null))
+    }
+
     @Test fun countsWorkSetsNotWarmupsAndAPerSideSetOnce() {
         val sides = Sides(SideRow(20.0, 8.0), SideRow(20.0, 8.0))
         val (exercises, sets) = Plan.size(listOf(

@@ -98,6 +98,8 @@ public class HealthConnectPlugin extends Plugin {
     private static final String WRITE_WEIGHT = "android.permission.health.WRITE_WEIGHT";
     // Optional (#724): the estimated active energy of each workout, written beside its session.
     private static final String WRITE_CALORIES = "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED";
+    // The heart-rate curve the Wear OS watch measured (Craveiro Gym), so Samsung Health and the rest have it too.
+    private static final String WRITE_HEART_RATE = "android.permission.health.WRITE_HEART_RATE";
     private static final String READ_HEART_RATE = "android.permission.health.READ_HEART_RATE";
     private static final String READ_WEIGHT = "android.permission.health.READ_WEIGHT";
     private static final String READ_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY";
@@ -182,6 +184,7 @@ public class HealthConnectPlugin extends Plugin {
                 Set<String> got = granted();
                 r.put("granted", got.containsAll(permissions()));
                 r.put("calories", got.contains(WRITE_CALORIES));
+                r.put("heartRateWrite", got.contains(WRITE_HEART_RATE));
                 r.put("read", readState(got));
                 r.put("history", historyAvailable());
                 call.resolve(r);
@@ -224,6 +227,7 @@ public class HealthConnectPlugin extends Plugin {
                 JSObject r = new JSObject();
                 r.put("granted", now.containsAll(permissions()));
                 r.put("calories", now.contains(WRITE_CALORIES));
+                r.put("heartRateWrite", now.contains(WRITE_HEART_RATE));
                 r.put("read", readState(now));
                 call.resolve(r);
             } catch (Throwable e) {
@@ -243,10 +247,12 @@ public class HealthConnectPlugin extends Plugin {
         worker.execute(() -> {
             try {
                 long version = System.currentTimeMillis();
-                boolean kcal = granted().contains(WRITE_CALORIES);
+                Set<String> have = granted();
+                boolean kcal = have.contains(WRITE_CALORIES);
+                boolean hr = have.contains(WRITE_HEART_RATE);
                 // Each record built and checked on its own (HealthWrite): one Health Connect would
                 // refuse is left out instead of failing the write of everything else.
-                HealthWrite.Batch batch = HealthWrite.build(sessions, weights, kcal, version, version);
+                HealthWrite.Batch batch = HealthWrite.build(sessions, weights, kcal, hr, version, version);
                 Set<String> failed = new HashSet<>();
                 for (int from = 0; from < batch.records.size(); from += CHUNK) {
                     int to = Math.min(batch.records.size(), from + CHUNK);
@@ -300,6 +306,7 @@ public class HealthConnectPlugin extends Plugin {
                 delete(ExerciseSessionRecord.class, ids(sessions));
                 // A session's calories go with it; without the permission there are none of ours.
                 if (granted().contains(WRITE_CALORIES)) delete(ActiveCaloriesBurnedRecord.class, kcalIds(sessions));
+                if (granted().contains(WRITE_HEART_RATE)) delete(HeartRateRecord.class, suffixed(sessions, "-hr"));
                 delete(WeightRecord.class, ids(weights));
                 call.resolve();
             } catch (SecurityException e) {
@@ -588,6 +595,7 @@ public class HealthConnectPlugin extends Plugin {
         if (read == null && write == null) {
             Set<String> all = permissions();
             all.add(WRITE_CALORIES);
+            all.add(WRITE_HEART_RATE);
             return all;
         }
         Set<String> out = new HashSet<>();
@@ -664,6 +672,12 @@ public class HealthConnectPlugin extends Plugin {
     }
 
     // The client id of a session's calories record: the session's own, plus "-kcal".
+    private static List<String> suffixed(JSArray sessions, String suffix) throws JSONException {
+        List<String> out = new ArrayList<>();
+        for (String id : ids(sessions)) out.add(id + suffix);
+        return out;
+    }
+
     private static List<String> kcalIds(JSArray sessions) throws JSONException {
         List<String> out = new ArrayList<>();
         for (String id : ids(sessions)) out.add(id + "-kcal");

@@ -225,6 +225,20 @@ describe('heart rate from the watch', () => {
     expect(patchSet).toHaveBeenCalledTimes(1)
     expect(patchSet).toHaveBeenCalledWith({ wid: 'w-1', exId: '0025', entryIdx: 0, setIdx: 1 }, { restHr: { avg: 112, max: 128 } })
   })
+
+  it('the finished workout’s curve lands on the saved workout, and waits while it is not saved yet', () => {
+    const now = Date.now()
+    const S = { workouts: [] }
+    const edit = fn => !!fn(S)
+    bindWatchAppActions({ start: vi.fn(), patchSet: vi.fn(), edit })
+    const ev = { id: 'c1', type: 'hrSeries', wid: 'watch-9', at: now - 1000, t0: now - 600_000, dt: 10, v: [101, 0, 120], kcal: 250 }
+    expect(applyEvents([ev], () => ({ S }), now)).toEqual([])
+    S.workouts.push({ id: 'watch-9', start: now - 600_000, end: now - 1000, entries: [] })
+    expect(applyEvents([ev], () => ({ S }), now)).toEqual(['c1'])
+    expect(S.workouts[0].hrs).toMatchObject({ src: 'watch', v: [101, 0, 120], n: 2 })
+    expect(S.workouts[0].kcal).toBe(250)
+    expect(S.workouts[0]._ts).toBeGreaterThan(0)
+  })
 })
 
 describe('the workout\'s animations for the watch', () => {

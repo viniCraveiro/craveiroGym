@@ -296,6 +296,26 @@ object Metrics {
         }
     }
 
+    /**
+     * The workout's heart-rate curve for the phone (heart-rate.js hrSeries): the average of each
+     * `dt`-second slot from `t0`, 0 for a slot without a reading, at most six hours. Null with
+     * fewer than ten slots filled: too little to draw.
+     */
+    fun series(samples: List<Pair<Long, Int>>, t0: Long, end: Long, dt: Int = 10): List<Int>? {
+        if (end <= t0 || dt <= 0) return null
+        val slots = minOf(2160L, (end - t0) / (dt * 1000L) + 1).toInt()
+        val sum = LongArray(slots)
+        val cnt = IntArray(slots)
+        for ((t, bpm) in samples) {
+            if (bpm !in 25..250 || t < t0) continue
+            val i = ((t - t0) / (dt * 1000L)).toInt()
+            if (i >= slots) continue
+            sum[i] += bpm.toLong(); cnt[i]++
+        }
+        val v = (0 until slots).map { if (cnt[it] > 0) Math.round(sum[it].toDouble() / cnt[it]).toInt() else 0 }
+        return if (v.count { it > 0 } < 10) null else v
+    }
+
     /** The age in whole years, only from 10 to 100; none from a missing or implausible year of birth. */
     fun age(birthYear: Int?, year: Int): Int? = birthYear?.let { year - it }?.takeIf { it in 10..100 }
 

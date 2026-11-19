@@ -10,18 +10,22 @@ import os from 'node:os';
 import path from 'node:path';
 
 const { createIntegrations, OAUTH_STATE_MS } = await import('../integrations/index.js');
-const { activityFor, sportOf, AUTHORIZE_URL, TOKEN_URL, ACTIVITY_URL } = await import('../integrations/providers/strava.js');
+const { activityFor, sportOf, tcxFor, heartPoints, localTime, AUTHORIZE_URL, TOKEN_URL, ACTIVITY_URL, UPLOAD_URL } = await import('../integrations/providers/strava.js');
 const { workoutPayload } = await import('../integrations/events.js');
 
 const SECRET = 'b'.repeat(64);
-const ENV = { INTEGRATIONS: 'strava', STRAVA_CLIENT_ID: '4242', STRAVA_CLIENT_SECRET: 'shh' };
+const ENV = { INTEGRATIONS: 'strava', STRAVA_CLIENT_ID: '4242', STRAVA_CLIENT_SECRET: 'shh', STRAVA_DELAY_MIN: '0' };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'gym-strava-'));
 
 // A pretend Strava: the token endpoint and the activity endpoint, with switches for refusals.
 function strava() {
   const s = { calls: [], activities: [], codes: new Map([['good', 'r1']]), refresh: new Map([['r1', true]]), access: new Set(), n: 0, activityStatus: 201 };
+  s.uploads = []; s.updates = []; s.uploadError = null; s.ready = 1;
   s.fetchFn = async (url, { method, headers, body }) => {
-    const form = Object.fromEntries(new URLSearchParams(body));
+    const multi = /^multipart/.test(headers['Content-Type'] || '');
+    const form = multi
+      ? Object.fromEntries([...body.matchAll(/name="([^"]+)"(?:; filename="[^"]*")?\r\n(?:Content-Type: [^\r]*\r\n)?\r\n([\s\S]*?)\r\n--/g)].map(m => [m[1], m[2]]))
+      : Object.fromEntries(new URLSearchParams(body || ''));
     s.calls.push({ url, method, form, auth: headers.Authorization || null });
     const reply = (status, data) => ({ status, json: async () => data });
     if (url === TOKEN_URL) {
@@ -44,13 +48,24 @@ function strava() {
       s.activities.push(form);
       return reply(201, { id: s.activities.length });
     }
+    if (url.startsWith(UPLOAD_URL) || url.startsWith(ACTIVITY_URL + '/')) {
+      const tok = (headers.Authorization || '').replace('Bearer ', '');
+      if (!s.access.has(tok)) return reply(401, { message: 'Authorization Error' });
+      if (method === 'POST' && url === UPLOAD_URL) { s.uploads.push(form); return reply(201, { id: 900 + s.uploads.length, status: 'Your activity is still being processed.', activity_id: null, error: null }); }
+      if (method === 'GET') {
+        if (s.uploadError) return reply(200, { id: 901, error: s.uploadError, activity_id: null });
+        if (s.ready-- > 0) return reply(200, { id: 901, status: 'Your activity is still being processed.', activity_id: null, error: null });
+        return reply(200, { id: 901, status: 'Your activity is ready.', activity_id: 5000 + s.uploads.length, error: null });
+      }
+      if (method === 'PUT') { s.updates.push({ id: url.split('/').pop(), ...form }); return reply(200, { id: Number(url.split('/').pop()) }); }
+    }
     return reply(404, {});
   };
   return s;
 }
 
-function hub(env = ENV, s = strava(), now = Date.now) {
-  const h = createIntegrations({ dataDir: tmp(), secret: SECRET, env, fetchFn: s.fetchFn, now });
+function hub(env = ENV, s = strava(), now = Date.now, readDoc = null) {
+  const h = createIntegrations({ dataDir: tmp(), secret: SECRET, env, fetchFn: s.fetchFn, now, readDoc });
   return { h, s };
 }
 const stateOf = url => new URL(url).searchParams.get('state');
@@ -120,12 +135,13 @@ test('a workout as an activity: cardio as what it was, strength only when asked'
   assert.equal(run.elapsed_time, 35 * 60);
   assert.equal(run.distance, 5500);
   assert.equal(run.name, 'Morning run');
-  assert.match(run.description, /^Treadmill run: 30 min · 5 km · 1%, 5 min · 0\.5 km/);
+  assert.match(run.description, /^Treadmill run\nSet 1: 30 min · 5 km · 1%\nSet 2: 5 min · 0\.5 km\n\nLogged with Craveiro Gym$/);
   assert.equal(activityFor(workoutPayload(lifting, doc)), null, 'strength is off by default');
   const lift = activityFor(workoutPayload(lifting, doc), { strength: true });
   assert.equal(lift.sport_type, 'WeightTraining');
   assert.equal(lift.elapsed_time, 60 * 60);
-  assert.match(lift.description, /60 kg × 8, 60 kg × 7/);
+  assert.match(lift.description, /^Barbell bench press\nSet 1: 60 kg × 8\nSet 2: 60 kg × 7\n/);
+  assert.match(lift.description, /Muscles: pectorals/);
   assert.ok(!/20 kg × 10/.test(lift.description), 'warm-ups left out');
   assert.match(lift.description, /PRs: /);
   assert.equal(lift.distance, undefined);
@@ -181,4 +197,68 @@ test('Send test checks the sign-in without posting an activity', async () => {
   const r = await h.test('u1', connection.id);
   assert.equal(r.ok, true);
   assert.equal(s.activities.length, 0);
+});
+
+test('in Portuguese: the catalogue’s names, the muscles, and the start in the athlete’s time zone', () => {
+  const hr = { ...lifting, hr: { avg: 132, max: 174 }, kcal: 412, entries: [{ id: '0025', sets: [{ w: 60, r: 8, done: true, hr: { avg: 125, max: 168 } }, { w: 60, r: 7, done: true }] }] };
+  const a = activityFor(workoutPayload(hr, doc), { strength: true, lang: 'pt-BR', tz: 'America/Sao_Paulo' });
+  assert.match(a.description, /^Supino com barra\nSérie 1: 60 kg × 8 · ♥ 125\/168\nSérie 2: 60 kg × 7\n\nMúsculos: peitoral\nVolume: 900 kg · 2 séries\nRecordes: Supino com barra\n♥ média 132 · máx 174 bpm · 412 kcal\n\nRegistrado com Craveiro Gym$/);
+  assert.equal(localTime('2026-11-18T22:50:00.000Z', 'America/Sao_Paulo'), '2026-11-18T19:50:00');
+  assert.equal(localTime('2026-11-18T22:50:00.000Z', 'Not/AZone'), '2026-11-18T22:50:00');
+});
+
+test('the heart rate as a file: the curve when there is one, else what the watch measured per set', () => {
+  const t0 = NOW + 10 * 60000;
+  const curve = { ...lifting, hrs: { t0, dt: 10, v: [90, 0, 120, 130], src: 'watch', n: 3 } };
+  const p = workoutPayload(curve, doc, { series: true });
+  assert.deepEqual(heartPoints(p), [[t0, 90], [t0 + 20000, 120], [t0 + 30000, 130]]);
+  const file = tcxFor(p, activityFor(p, { strength: true }));
+  assert.match(file, /<Activity Sport="Other">/);
+  assert.equal((file.match(/<Trackpoint>/g) || []).length, 4, 'and one at the end, so the time is the workout’s');
+  assert.equal(workoutPayload(curve, doc).heartRateSeries, undefined, 'webhooks never get the curve');
+  const perSet = workoutPayload({ ...lifting, entries: [{ id: '0025', sets: [{ w: 60, r: 8, done: true, at: t0 + 60000, hr: { avg: 120, max: 140 }, restHr: { avg: 110, max: 125 } }, { w: 60, r: 8, done: true, at: t0 + 180000, hr: { avg: 125, max: 150 } }] }] }, doc);
+  assert.deepEqual(heartPoints(perSet).map(p => p[1]), [120, 140, 110, 125, 150]);
+  assert.equal(tcxFor(workoutPayload(lifting, doc), activityFor(workoutPayload(lifting, doc), { strength: true })), null, 'none without a heart rate');
+});
+
+test('a workout with a heart rate goes up as a file 10 minutes later, read again then, and becomes Weight Training', async () => {
+  let clock = NOW;
+  const s = strava();
+  s.ready = 0;
+  let stored = { ...doc, workouts: [lifting] };
+  const env = { ...ENV };
+  delete env.STRAVA_DELAY_MIN;
+  const { h } = hub(env, s, () => clock, () => stored);
+  const { connection } = await connect(h);
+  h.update('u1', connection.id, { strength: true });
+  assert.equal(h.onStateWrite('u1', { workouts: [] }, stored), 1);
+  await h._outbox().run();
+  assert.equal(s.uploads.length + s.activities.length, 0, 'waits for the curve');
+  // the watch's curve arrives meanwhile
+  stored = { ...doc, lang: 'pt', workouts: [{ ...lifting, hrs: { t0: lifting.start, dt: 10, v: Array.from({ length: 30 }, (_, i) => 100 + i) } }] };
+  clock += 10 * 60000 + 1;
+  await h._outbox().run();
+  assert.equal(s.activities.length, 0);
+  assert.equal(s.uploads.length, 1);
+  assert.equal(s.uploads[0].data_type, 'tcx');
+  assert.match(s.uploads[0].file, /<HeartRateBpm><Value>129<\/Value>/);
+  assert.match(s.uploads[0].description, /^Supino com barra\nSérie 1/);
+  assert.deepEqual(s.updates.map(u => [u.id, u.sport_type, u.trainer]), [['5001', 'WeightTraining', '1']]);
+  assert.equal(h.describe('u1').connections[0].queued, 0);
+});
+
+test('an upload Strava already has is the activity it made; a workout deleted meanwhile is not sent', async () => {
+  const s = strava();
+  s.uploadError = 'workout.tcx duplicate of <a href=\'/activities/777\' target=\'_blank\'>Push</a>';
+  let stored = { ...doc, workouts: [{ ...lifting, hrs: { t0: lifting.start, dt: 10, v: Array.from({ length: 30 }, () => 120) } }] };
+  const { h } = hub(ENV, s, Date.now, () => stored);
+  const { connection } = await connect(h);
+  h.update('u1', connection.id, { strength: true });
+  h.onStateWrite('u1', { workouts: [] }, stored);
+  await h._outbox().run();
+  assert.deepEqual(s.updates.map(u => u.id), ['777']);
+  stored = { ...doc, workouts: [] };
+  h.onStateWrite('u1', { workouts: [] }, { ...doc, workouts: [{ ...lifting, id: 'w9' }] });
+  await h._outbox().run();
+  assert.equal(s.uploads.length + s.activities.length, 1, 'the deleted one stayed here');
 });

@@ -18,9 +18,13 @@
  * `fetchFn` is the network, injectable for the tests: (url, { method, headers, body }) →
  * { status, json() }. */
 
+import { LIB_BY_ID } from '../../coach/core/library.js';
+import { NAMES_PT } from '../exercise-names-pt.js';
+
 export const AUTHORIZE_URL = 'https://www.strava.com/oauth/authorize';
 export const TOKEN_URL = 'https://www.strava.com/oauth/token';
 export const ACTIVITY_URL = 'https://www.strava.com/api/v3/activities';
+export const UPLOAD_URL = 'https://www.strava.com/api/v3/uploads';
 export const SCOPE = 'activity:write';
 const TIMEOUT_MS = 15_000;
 // Strava's own limits are 100 requests per 15 minutes and 1000 a day per application; the
@@ -46,9 +50,33 @@ export function sportOf(name) {
 const isCardioSet = s => s && !s.sides && Number(s.minutes) > 0 && !(Number(s.reps) > 0);
 const cardioOf = ex => (ex.sets || []).filter(isCardioSet);
 
+/* ---------- the words: English, or Portuguese for a profile (or a server, STRAVA_LANG) in it ---------- */
+
+const WORDS = {
+  en: { set: 'Set', muscles: 'Muscles', volume: 'Volume', sets: 'sets', prs: 'PRs', hr: 'Heart rate', avg: 'avg', max: 'max', logged: 'Logged with Craveiro Gym', strength: 'Strength training', workout: 'Workout', left: 'L', right: 'R' },
+  pt: { set: 'Série', muscles: 'Músculos', volume: 'Volume', sets: 'séries', prs: 'Recordes', hr: 'Frequência cardíaca', avg: 'média', max: 'máx', logged: 'Registrado com Craveiro Gym', strength: 'Treino de força', workout: 'Treino', left: 'E', right: 'D' },
+};
+// The catalogue's target muscle (coach/core/library.js `tg`) in Portuguese.
+const MUSCLE_PT = {
+  abs: 'abdômen', obliques: 'oblíquos', lats: 'dorsais', pectorals: 'peitoral', hamstrings: 'posteriores de coxa',
+  triceps: 'tríceps', 'cardiovascular system': 'cardio', spine: 'lombar', 'upper back': 'costas', quads: 'quadríceps',
+  biceps: 'bíceps', glutes: 'glúteos', 'side delts': 'deltoide lateral', 'front delts': 'deltoide anterior',
+  'rear delts': 'deltoide posterior', forearms: 'antebraços', traps: 'trapézio', calves: 'panturrilhas',
+  'serratus anterior': 'serrátil anterior', adductors: 'adutores', abductors: 'abdutores', shins: 'tibiais',
+  'hip flexors': 'flexores do quadril', 'levator scapulae': 'elevador da escápula',
+};
+export const langOf = l => (/^pt\b/i.test(String(l || '')) ? 'pt' : 'en');
+const cap = s => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** An exercise's name in the description: the catalogue's in Portuguese when that is the language. */
+export function exerciseLabel(e, lang) {
+  if (lang === 'pt' && LIB_BY_ID.has(String(e.id)) && NAMES_PT[e.id]) return cap(NAMES_PT[e.id]);
+  return cap(e.name || String(e.id));
+}
+
 const fmt = n => String(Math.round(n * 100) / 100);
-function setText(s, unit) {
-  if (s.sides) return `L ${setText(s.sides.left, unit)} / R ${setText(s.sides.right, unit)}`;
+function setText(s, unit, W) {
+  if (s.sides) return `${W.left} ${setText(s.sides.left, unit, W)} / ${W.right} ${setText(s.sides.right, unit, W)}`;
   if (isCardioSet(s)) {
     const km = s.distanceKm != null ? s.distanceKm : (s.speedKmh ? s.speedKmh * s.minutes / 60 : null);
     return [fmt(s.minutes) + ' min', km ? fmt(km) + ' km' : null, s.incline ? fmt(s.incline) + '%' : null].filter(Boolean).join(' · ');
@@ -57,12 +85,25 @@ function setText(s, unit) {
   return (s.weight ? fmt(s.weight) + unit + ' × ' : '') + fmt(s.reps || 0);
 }
 
+/** "2026-11-18T19:50:00" in `tz`: what Strava's start_date_local wants (it takes no offset). */
+export function localTime(iso, tz) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz || 'UTC', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(d).map(x => [x.type, x.value]));
+    return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
+  } catch { return d.toISOString().slice(0, 19); }
+}
+
 /**
  * The activity for a workout (events.js workoutPayload), or null when there is nothing to send:
- * a strength-only workout with strength uploads off.
+ * a strength-only workout with strength uploads off. `lang` 'pt' or 'en'; `tz` the time zone the
+ * manual activity's local start is written in (a file upload carries UTC and needs none).
  */
-export function activityFor(w, { strength = false } = {}) {
+export function activityFor(w, { strength = false, lang = 'en', tz = 'UTC' } = {}) {
   if (!w || typeof w !== 'object') return null;
+  const W = WORDS[langOf(lang)];
+  const L = langOf(lang);
   const exercises = Array.isArray(w.exercises) ? w.exercises : [];
   const cardio = exercises.filter(e => cardioOf(e).length);
   const lifting = exercises.filter(e => (e.sets || []).some(s => !isCardioSet(s)));
@@ -78,55 +119,147 @@ export function activityFor(w, { strength = false } = {}) {
     ? (w.durationMin > 0 ? w.durationMin * 60 : Math.max(60, Math.round(cardioMin * 60)))
     : Math.round(cardioMin * 60);
   const unit = w.unit === 'lb' ? ' lb' : ' kg';
-  const lines = [];
-  for (const e of asStrength ? exercises : cardio) {
-    const sets = (e.sets || []).filter(s => !s.warmup && (asStrength || isCardioSet(s)));
-    if (sets.length) lines.push(`${e.name}: ${sets.map(s => setText(s, unit)).join(', ')}`);
-  }
-  if (asStrength && w.totals?.volume) lines.push('', `Volume ${fmt(w.totals.volume)}${unit}, ${w.totals.sets} sets`);
-  if (Array.isArray(w.records) && w.records.length) lines.push(`PRs: ${w.records.map(r => r.name).join(', ')}`);
-  if (w.note) lines.push('', w.note);
-  lines.push('', 'Logged with Craveiro Gym');
-  const name = (w.name || (asStrength ? 'Strength training' : main?.name) || 'Workout').slice(0, 120);
+  const shown = asStrength ? exercises : cardio;
+
+  // One block per exercise, one line per work set (as Hevy writes it), the set's heart rate after it.
+  const describe = withHr => {
+    const lines = [];
+    for (const e of shown) {
+      const sets = (e.sets || []).filter(s => !s.warmup && (asStrength || isCardioSet(s)));
+      if (!sets.length) continue;
+      if (lines.length) lines.push('');
+      lines.push(exerciseLabel(e, L));
+      sets.forEach((s, i) => lines.push(`${W.set} ${i + 1}: ${setText(s, unit, W)}${withHr && s.heartRate ? ` · ♥ ${s.heartRate.avg}/${s.heartRate.max}` : ''}`));
+    }
+    const tail = [];
+    if (asStrength) {
+      const seen = new Map();
+      for (const e of lifting) {
+        const tg = LIB_BY_ID.get(String(e.id))?.tg;
+        const n = (e.sets || []).filter(s => !s.warmup).length;
+        if (tg && n) seen.set(tg, (seen.get(tg) || 0) + n);
+      }
+      const muscles = [...seen].sort((a, b) => b[1] - a[1]).map(([m]) => (L === 'pt' ? MUSCLE_PT[m] || m : m));
+      if (muscles.length) tail.push(`${W.muscles}: ${muscles.join(', ')}`);
+      if (w.totals?.volume) tail.push(`${W.volume}: ${fmt(w.totals.volume)}${unit} · ${w.totals.sets} ${W.sets}`);
+    }
+    if (Array.isArray(w.records) && w.records.length) tail.push(`${W.prs}: ${w.records.map(r => exerciseLabel(r, L)).join(', ')}`);
+    const hr = w.heartRate ? `♥ ${W.avg} ${w.heartRate.avg} · ${W.max} ${w.heartRate.max} bpm` : '';
+    const kcal = w.calories ? `${w.calories} kcal` : '';
+    if (hr || kcal) tail.push([hr, kcal].filter(Boolean).join(' · '));
+    if (tail.length) lines.push('', ...tail);
+    if (w.note) lines.push('', w.note);
+    lines.push('', W.logged);
+    return lines.join('\n');
+  };
+  let description = describe(true);
+  if (description.length > DESC_MAX) description = describe(false);
+  const name = (w.name || (asStrength ? W.strength : main ? exerciseLabel(main, L) : null) || W.workout).slice(0, 120);
+  const start = w.startedAt || (w.date ? w.date + 'T12:00:00Z' : new Date().toISOString());
   return {
     name,
     sport_type: sport,
-    start_date_local: w.startedAt || (w.date ? w.date + 'T12:00:00Z' : new Date().toISOString()),
+    start_date_local: localTime(start, tz) || start.slice(0, 19),
     elapsed_time: Math.max(1, Math.round(elapsed)),
-    description: lines.join('\n').slice(0, DESC_MAX),
+    description: description.slice(0, DESC_MAX),
     ...(trainer ? { trainer: 1 } : {}),
     ...(!asStrength && distanceKm > 0 ? { distance: Math.round(distanceKm * 1000) } : {}),
   };
 }
 
+/* ---------- the file: what gives Strava a heart-rate chart and Relative Effort ---------- */
+
+/**
+ * [ms, bpm] points for the file: the workout's curve when it has one (heartRateSeries); else,
+ * from what a watch measured per set, the set's average and peak at its tick and the rest's
+ * average after it (a coarse line, made of real readings). Empty without either.
+ */
+export function heartPoints(w) {
+  const s = w?.heartRateSeries;
+  if (s && Array.isArray(s.v)) {
+    const t0 = Date.parse(s.start);
+    if (Number.isFinite(t0)) {
+      const pts = [];
+      s.v.forEach((b, i) => { if (b > 0) pts.push([t0 + i * s.dt * 1000, b]); });
+      if (pts.length >= 2) return pts;
+    }
+  }
+  const ticks = [];
+  for (const e of w?.exercises || []) for (const set of e.sets || []) {
+    const t = Date.parse(set.doneAt);
+    if (Number.isFinite(t) && (set.heartRate || set.restHeartRate)) ticks.push({ t, hr: set.heartRate, rest: set.restHeartRate });
+  }
+  ticks.sort((a, b) => a.t - b.t);
+  const pts = [];
+  ticks.forEach((x, i) => {
+    const gap = ticks[i + 1] ? ticks[i + 1].t - x.t : 120_000;
+    if (x.hr) { pts.push([x.t - 20_000, x.hr.avg]); pts.push([x.t, x.hr.max]); }
+    if (x.rest && gap > 20_000) pts.push([x.t + Math.min(60_000, gap / 2), x.rest.avg]);
+  });
+  const out = [];
+  for (const p of pts.sort((a, b) => a[0] - b[0])) if (!out.length || p[0] > out[out.length - 1][0]) out.push(p);
+  return out.length >= 2 ? out : [];
+}
+
+const xml = s => String(s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+/** The workout as a TCX file with its heart rate, or null when there is none to give. */
+export function tcxFor(w, act) {
+  const pts = heartPoints(w);
+  if (!pts.length) return null;
+  let start = Date.parse(w.startedAt), end = Date.parse(w.endedAt);
+  if (!Number.isFinite(start)) start = pts[0][0];
+  if (!Number.isFinite(end) || end <= start) end = Math.max(start + act.elapsed_time * 1000, pts[pts.length - 1][0]);
+  const inside = pts.filter(([t]) => t >= start && t <= end);
+  if (inside.length < 2) return null;
+  // The first and last point at the workout's start and end, so Strava's time is the workout's.
+  if (inside[0][0] > start) inside.unshift([start, inside[0][1]]);
+  if (inside[inside.length - 1][0] < end) inside.push([end, inside[inside.length - 1][1]]);
+  const sport = act.sport_type === 'Run' ? 'Running' : act.sport_type === 'Ride' ? 'Biking' : 'Other';
+  const dist = Number(act.distance) || 0;
+  const avg = Math.round(inside.reduce((a, p) => a + p[1], 0) / inside.length), max = Math.max(...inside.map(p => p[1]));
+  const span = end - start;
+  const track = inside.map(([t, b]) => `<Trackpoint><Time>${iso(t)}</Time>${dist ? `<DistanceMeters>${(dist * (t - start) / span).toFixed(1)}</DistanceMeters>` : ''}<HeartRateBpm><Value>${b}</Value></HeartRateBpm></Trackpoint>`).join('');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">'
+    + `<Activities><Activity Sport="${sport}"><Id>${iso(start)}</Id><Lap StartTime="${iso(start)}">`
+    + `<TotalTimeSeconds>${Math.round(span / 1000)}</TotalTimeSeconds><DistanceMeters>${dist}</DistanceMeters>`
+    + (w.calories ? `<Calories>${w.calories}</Calories>` : '<Calories>0</Calories>')
+    + `<AverageHeartRateBpm><Value>${avg}</Value></AverageHeartRateBpm><MaximumHeartRateBpm><Value>${max}</Value></MaximumHeartRateBpm>`
+    + `<Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>${track}</Track></Lap>`
+    + `<Notes>${xml(act.name)}</Notes><Creator xsi:type="Device_t" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Name>Craveiro Gym</Name></Creator></Activity></Activities></TrainingCenterDatabase>\n`;
+}
+
+/* ---------- talking to Strava ---------- */
+
 const form = o => Object.entries(o).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v))).join('&');
 
-async function call(fetchFn, url, body) {
-  const ctrl = new AbortController();
-  const tm = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  tm.unref?.();
-  const t0 = Date.now();
-  try {
-    const r = await fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: form(body), signal: ctrl.signal });
-    let data = null;
-    try { data = await r.json(); } catch { /* no body */ }
-    return { status: r.status, data, ms: Date.now() - t0 };
-  } finally { clearTimeout(tm); }
-}
-async function authed(fetchFn, url, token, body) {
-  const ctrl = new AbortController();
-  const tm = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  tm.unref?.();
-  const t0 = Date.now();
-  try {
-    const r = await fetchFn(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: form(body), signal: ctrl.signal });
-    let data = null;
-    try { data = await r.json(); } catch { /* no body */ }
-    return { status: r.status, data, ms: Date.now() - t0 };
-  } finally { clearTimeout(tm); }
+/** A multipart body (the upload): plain fields and one file. → { body, type } */
+export function multipart(fields, file) {
+  const b = '----craveirogym' + Math.random().toString(16).slice(2);
+  let s = '';
+  for (const [k, v] of Object.entries(fields)) s += `--${b}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`;
+  s += `--${b}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: application/xml\r\n\r\n${file.data}\r\n--${b}--\r\n`;
+  return { body: s, type: 'multipart/form-data; boundary=' + b };
 }
 
-export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, now = Date.now } = {}) {
+async function request(fetchFn, method, url, { token = null, body = null, type = 'application/x-www-form-urlencoded' } = {}) {
+  const ctrl = new AbortController();
+  const tm = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  tm.unref?.();
+  const t0 = Date.now();
+  try {
+    const headers = { Accept: 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(body != null ? { 'Content-Type': type } : {}) };
+    const r = await fetchFn(url, { method, headers, ...(body != null ? { body: typeof body === 'string' ? body : form(body) } : {}), signal: ctrl.signal });
+    let data = null;
+    try { data = await r.json(); } catch { /* no body */ }
+    return { status: r.status, data, ms: Date.now() - t0 };
+  } finally { clearTimeout(tm); }
+}
+const call = (fetchFn, url, body) => request(fetchFn, 'POST', url, { body });
+
+export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, now = Date.now, pollMs = 2500 } = {}) {
   const clientId = String(env.STRAVA_CLIENT_ID || '').trim();
   const clientSecret = String(env.STRAVA_CLIENT_SECRET || '').trim();
 
@@ -159,6 +292,10 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
     kind: 'oauth',
     category: 'training',
     events: ['workout.finished'],
+    // Ten minutes before the first try, and the workout read again then: the watch's heart-rate
+    // curve and the health hub's readings reach the server after the finish.
+    delayMs: Math.max(0, Number(env.STRAVA_DELAY_MIN ?? 10)) * 60_000,
+    fresh: true,
     env: ['STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET'],
     configured: e => !!String(e.STRAVA_CLIENT_ID || '').trim() && !!String(e.STRAVA_CLIENT_SECRET || '').trim(),
     max: 1,
@@ -203,16 +340,27 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
       return patch;
     },
 
-    /** One upload. `reveal(name)` opens a sealed secret, `reseal(map)` stores refreshed ones. */
-    async deliver(job, reveal, { reseal = () => {}, info = {} } = {}) {
-      const w = job.payload?.data?.workout;
+    /**
+     * One workout up. `reveal(name)` opens a sealed secret, `reseal(map)` stores refreshed ones.
+     * With a heart rate (the curve, or a watch's per set) it goes as a file (POST /uploads, then
+     * the sport set on the activity it made), which gives Strava its chart and Relative Effort;
+     * without, as a manual activity. Where an upload got to is kept on the job (`job.stage`), so a
+     * retry picks up there instead of uploading twice.
+     */
+    async deliver(job, reveal, { reseal = () => {}, info = {}, workout, lang = null } = {}) {
       if (job.ev === 'test') {
         // "Send test" checks the sign-in without posting an activity nobody did.
         const r = await refresh(reveal, reseal);
         return r.error || { ok: true, status: 200 };
       }
-      const act = activityFor(w, { strength: info.strength === 'on' });
+      // The workout as it is now (the hub reads it again, the curve may have come since); null:
+      // deleted meanwhile, nothing to send.
+      if (workout === null) return { ok: true, status: 0, msg: 'The workout was deleted before it went up.' };
+      const w = workout || job.payload?.data?.workout;
+      const L = langOf(String(env.STRAVA_LANG || '').trim() || lang);
+      const act = activityFor(w, { strength: info.strength === 'on', lang: L, tz: String(env.STRAVA_TZ || env.TZ || '').trim() || 'UTC' });
       if (!act) return { ok: true, status: 0, msg: 'Nothing to upload: strength workouts are off.' };
+
       let token = reveal('access');
       const exp = Number(reveal('expires')) || 0;
       if (!token || exp - now() < 120_000) {
@@ -220,20 +368,65 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
         if (r.error) return r.error;
         token = r.access;
       }
-      let res;
-      try { res = await authed(fetchFn, ACTIVITY_URL, token, act); }
-      catch { return { ok: false, retry: true, code: 'network', msg: 'Could not reach Strava.' }; }
-      if (res.status === 401) {
-        const r = await refresh(reveal, reseal);
-        if (r.error) return r.error;
-        try { res = await authed(fetchFn, ACTIVITY_URL, r.access, act); }
-        catch { return { ok: false, retry: true, code: 'network', msg: 'Could not reach Strava.' }; }
-      }
-      if (res.status === 201 || res.status === 200) return { ok: true, status: res.status, ms: res.ms };
-      if (res.status === 429) return { ok: false, retry: true, retryAfterMs: 15 * 60_000, status: 429, code: 'rate', msg: 'Strava says slow down, trying again in 15 minutes.' };
-      if (res.status >= 500) return { ok: false, retry: true, status: res.status, code: 'http', msg: `Strava answered ${res.status}.` };
-      if (res.status === 403 || res.status === 401) return { ok: false, retry: false, gone: true, status: res.status, code: 'reconnect', msg: 'Reconnect Strava: it no longer lets Craveiro Gym upload.' };
-      return { ok: false, retry: false, status: res.status, code: 'http', msg: `Strava refused the activity (${res.status}).` };
+      // A request with the token, once more with a renewed one when Strava refuses it.
+      const send = async (method, url, opts = {}) => {
+        let res = await request(fetchFn, method, url, { ...opts, token });
+        if (res.status === 401) {
+          const r = await refresh(reveal, reseal);
+          if (r.error) return { error: r.error };
+          token = r.access;
+          res = await request(fetchFn, method, url, { ...opts, token });
+        }
+        return res;
+      };
+      const refused = (res, what) => {
+        if (res.error) return res.error;
+        if (res.status === 429) return { ok: false, retry: true, retryAfterMs: 15 * 60_000, status: 429, code: 'rate', msg: 'Strava says slow down, trying again in 15 minutes.' };
+        if (res.status >= 500) return { ok: false, retry: true, status: res.status, code: 'http', msg: `Strava answered ${res.status}.` };
+        if (res.status === 403 || res.status === 401) return { ok: false, retry: false, gone: true, status: res.status, code: 'reconnect', msg: 'Reconnect Strava: it no longer lets Craveiro Gym upload.' };
+        return { ok: false, retry: false, status: res.status, code: 'http', msg: `Strava refused the ${what} (${res.status}).` };
+      };
+      const net = { ok: false, retry: true, code: 'network', msg: 'Could not reach Strava.' };
+
+      const file = tcxFor(w, act);
+      try {
+        if (!file) {
+          const res = await send('POST', ACTIVITY_URL, { body: act });
+          if (res.status === 201 || res.status === 200) return { ok: true, status: res.status, ms: res.ms };
+          return refused(res, 'activity');
+        }
+        job.stage = job.stage && typeof job.stage === 'object' ? job.stage : {};
+        if (!job.stage.upload && !job.stage.activity) {
+          const { body, type } = multipart({
+            data_type: 'tcx', name: act.name, description: act.description, external_id: `craveirogym-${String(w.id).slice(0, 60)}.tcx`,
+            ...(act.trainer ? { trainer: 1 } : {}),
+          }, { name: 'workout.tcx', data: file });
+          const res = await send('POST', UPLOAD_URL, { body, type });
+          if (res.status !== 201 && res.status !== 200) return refused(res, 'upload');
+          if (!res.data?.id) return { ok: false, retry: true, status: res.status, code: 'http', msg: 'Strava took the upload without saying where it went.' };
+          job.stage.upload = String(res.data.id);
+        }
+        // Strava turns the file into an activity in a few seconds.
+        for (let i = 0; !job.stage.activity && i < 4; i++) {
+          if (i) await new Promise(r => { const t = setTimeout(r, pollMs); t.unref?.(); });
+          const res = await send('GET', `${UPLOAD_URL}/${encodeURIComponent(job.stage.upload)}`);
+          if (res.status !== 200) return refused(res, 'upload');
+          if (res.data?.activity_id) { job.stage.activity = String(res.data.activity_id); break; }
+          if (res.data?.error) {
+            // The same file twice (a job sent again after a crash): the activity it made the first time.
+            const dup = /duplicate of .*?activities\/(\d+)/i.exec(String(res.data.error));
+            if (dup) { job.stage.activity = dup[1]; break; }
+            return { ok: false, retry: false, status: 400, code: 'upload', msg: `Strava could not read the file: ${String(res.data.error).replace(/<[^>]*>/g, '').slice(0, 120)}` };
+          }
+        }
+        if (!job.stage.activity) return { defer: 30_000 };
+        // The file says only "other": the sport (Weight Training) and the indoor flag go on now.
+        const res = await send('PUT', `${ACTIVITY_URL}/${encodeURIComponent(job.stage.activity)}`, {
+          body: { sport_type: act.sport_type, name: act.name, description: act.description, ...(act.trainer ? { trainer: 1 } : {}) },
+        });
+        if (res.status === 200 || res.status === 201) return { ok: true, status: 201, ms: res.ms };
+        return refused(res, 'activity');
+      } catch { return net; }
     },
   };
 }

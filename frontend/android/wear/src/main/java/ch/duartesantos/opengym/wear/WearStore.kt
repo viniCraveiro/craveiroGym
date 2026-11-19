@@ -228,6 +228,7 @@ object WearStore {
             closeRest(now())
             val discarded = snap.discarded?.contains(gone.id) == true
             _summary.value = if (discarded) null else SessionCore.summary(gone, now().toDouble(), endedOnPhone = true, hr = hrOf(0), kcal = _calories.value)
+            if (!discarded) sendCurve(gone, now())
             stopHold(); stopHoldCount(); stopRest(); closeFix()
             readings.clear()
         }
@@ -612,6 +613,7 @@ object WearStore {
         val (s1, event) = SessionCore.finish(before, at.toDouble(), UUID.randomUUID().toString(), idle = idle, left = left)
         event?.let { PhoneLink.send(app, it) }
         _summary.value = SessionCore.summary(w, at.toDouble(), hr = hrOf(0), kcal = _calories.value)
+        sendCurve(w, at)
         endAll()
         commit(s1)
         Haptics.finished(app)
@@ -951,6 +953,14 @@ object WearStore {
     }
 
     /** avg and max of the readings from `from` up to `to` (ms), or null without any (the phone's sanitizeHr shape). */
+    /** The finished workout's heart-rate curve and calories to the phone (SessionCore.hrSeriesEvent), for Strava. */
+    private fun sendCurve(w: ActiveWorkout, end: Long) {
+        val wid = w.id ?: return
+        val t0 = w.start?.toLong() ?: readings.firstOrNull()?.first ?: return
+        val v = Metrics.series(readings.toList(), t0, end)
+        SessionCore.hrSeriesEvent(wid, end, UUID.randomUUID().toString(), t0, v, _calories.value)?.let { PhoneLink.send(app, it) }
+    }
+
     private fun hrOf(from: Long, to: Long = Long.MAX_VALUE): Pair<Int, Int>? {
         val xs = readings.filter { it.first in from..to }.map { it.second }
         if (xs.isEmpty()) return null

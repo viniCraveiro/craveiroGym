@@ -81,11 +81,28 @@ function setOut(s) {
   if (num(s.rpe) != null) o.rpe = s.rpe;
   if (num(s.rir) != null) o.rir = s.rir;
   if (isWarmup(s)) o.warmup = true;
+  // The heart rate a watch measured during the set and the rest after it, and when it was done.
+  const hr = hrOut(s.hr), restHr = hrOut(s.restHr);
+  if (hr) o.heartRate = hr;
+  if (restHr) o.restHeartRate = restHr;
+  if (num(s.at) && s.at > 0) o.doneAt = new Date(s.at).toISOString();
   return o;
+}
+const hrOut = v => {
+  const avg = Math.round(Number(v?.avg)), max = Math.round(Number(v?.max));
+  return avg >= 25 && avg <= 250 && max >= avg && max <= 250 ? { avg, max } : null;
+};
+/** The workout's heart-rate curve (frontend lib/heart-rate.js `hrs`): { start, dt, v } or null. */
+export function seriesOut(x) {
+  const t0 = Number(x?.t0), dt = Math.round(Number(x?.dt));
+  if (!(t0 > 0) || !(dt >= 1 && dt <= 60) || !Array.isArray(x.v)) return null;
+  const v = x.v.slice(0, 2160).map(b => { const n = Math.round(Number(b)); return n >= 25 && n <= 250 ? n : 0; });
+  return v.filter(Boolean).length >= 2 ? { start: new Date(t0).toISOString(), dt, v } : null;
 }
 const done = s => (s?.sides ? s.sides.L?.done === true || s.sides.R?.done === true : s?.done === true);
 
-export function workoutPayload(w, doc) {
+/** `series`: the heart-rate curve too (Strava's upload); left out of what webhooks get, it is large. */
+export function workoutPayload(w, doc, { series = false } = {}) {
   const exercises = list(w.entries).slice(0, MAX_EXERCISES).map(e => ({
     id: String(e.id).slice(0, 40),
     name: exerciseName(e.id, doc),
@@ -112,6 +129,9 @@ export function workoutPayload(w, doc) {
     exercises,
     records: (Array.isArray(w.prs) ? w.prs : []).slice(0, MAX_EXERCISES).map(id => ({ id: String(id).slice(0, 40), name: exerciseName(id, doc) })),
     ...(text(w.note, NOTE_MAX) ? { note: text(w.note, NOTE_MAX) } : {}),
+    ...(hrOut(w.hr) ? { heartRate: hrOut(w.hr) } : {}),
+    ...(Number(w.kcal) > 0 && Number(w.kcal) < 10000 ? { calories: Math.round(w.kcal) } : {}),
+    ...(series && seriesOut(w.hrs) ? { heartRateSeries: seriesOut(w.hrs) } : {}),
   };
 }
 

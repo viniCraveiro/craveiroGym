@@ -47,7 +47,8 @@ import { weightIncrement } from './progression.js'
 import { sessionHistory } from './backfill.js'
 import { buildCombinedEntries, deriveSessionName } from './session-merge.js'
 import { todayISO, exerciseNameText } from './format.js'
-import { sanitizeHr } from './heart-rate.js'
+import { sanitizeHr, applyHrSeries } from './heart-rate.js'
+import { stampWorkout } from './sync-merge.js'
 import { readWatchPrefs, settingsForWatch, writeWatchStatus, readWatchStatus, onWatchPrefs, writeGarminLink, noteWatchHeard } from './watch-settings.js'
 import { forgottenForWatch, readForgottenPrefs, readForgottenState, onForgottenChange, gymReminderOn } from './forgotten-workout.js'
 import { garminSnapshot, GARMIN_ACKED_MAX } from './garmin-snapshot.js'
@@ -177,12 +178,12 @@ export function applyRestStep (ui, step, { wid = null, at = Date.now() } = {}) {
 // "the later tick wins" agree across a watch that runs a few seconds off. Beyond this it is a clock
 // that is simply wrong, not one that is off: left as it is.
 export const MAX_OFF_MS = 12 * 3600e3
-/** The event with its times on the phone's clock (`off` taken off `at`, `restEnd`, `endsAt`). */
+/** The event with its times on the phone's clock (`off` taken off `at`, `restEnd`, `endsAt`, `t0`). */
 export function phoneClock (ev) {
   const off = num(ev?.off)
   if (!off || Math.abs(off) > MAX_OFF_MS) return ev
   const out = { ...ev }
-  for (const k of ['at', 'restEnd', 'endsAt']) if (num(out[k]) && out[k] > 0) out[k] = out[k] - off
+  for (const k of ['at', 'restEnd', 'endsAt', 't0']) if (num(out[k]) && out[k] > 0) out[k] = out[k] - off
   return out
 }
 
@@ -699,6 +700,8 @@ function claim (ev) {
  *   discard { wid, at }              the workout screen's own Discard (confirmed on the watch)
  *   stillHere { wid, at }            "Keep going" on the watch's "Still training?" (1.4.5)
  *   setHr   { wid, exId, entryIdx, setIdx, hr?, restHr? }   heart rate on a set (lib/heart-rate.js)
+ *   hrSeries { wid, t0, dt, v, kcal? }  the finished workout's heart-rate curve and calories
+ *            (Wear OS, after its finish): onto the saved workout (heart-rate.js applyHrSeries)
  *
  * A tick for a workout already saved (finished on the phone while the watch was away) is written
  * into that saved workout, stamped so the next sync keeps it. A tick while the workout screen is
@@ -836,6 +839,13 @@ function applyEach (events, getState, now = Date.now()) {
           if (!appHandlers) break
           appHandlers.patchSet({ wid: ev.wid, exId: ev.exId, entryIdx: ev.entryIdx, setIdx: ev.setIdx, ...(sidOk(ev.sid) ? { sid: ev.sid } : {}) }, fields)
         }
+      } else if (ev.type === 'hrSeries') {
+        // Comes after the finish, so the workout is saved by now. Not yet (the finish still waits
+        // for the workout screen): it waits in the queue too, unacknowledged, for two days at most.
+        if (!appHandlers?.edit) break
+        let hit = null
+        appHandlers.edit(s => { hit = applyHrSeries(s, ev, stampWorkout); return hit })
+        if (hit === null && wid && !discardedFor(now).includes(wid) && num(ev.at) && now - num(ev.at) < DEFER_MAX_MS) { rerunSoon = true; continue }
       } else if (ev.type === 'finish' && ours && staleWatchFinish(A, ev)) {
         // The watch took the workout for forgotten while it was being logged here (#904): it keeps
         // running, and the phone says why the watch has let go of it.

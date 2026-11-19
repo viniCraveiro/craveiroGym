@@ -374,6 +374,21 @@ object SessionCore {
         return s to event
     }
 
+    /**
+     * The finished workout's heart-rate curve and calories (lib/watch-sync.js hrSeries), sent after
+     * its finish: the phone keeps it on the saved workout, for Strava's chart. None without a curve
+     * (Metrics.series) and without calories.
+     */
+    fun hrSeriesEvent(wid: String, at: Long, id: String, t0: Long, v: List<Int>?, kcal: Double?, dt: Int = 10): Event? {
+        val k = kcal?.takeIf { it.isFinite() && it > 0 }?.let { Math.round(it) }
+        if (wid.isEmpty() || (v == null && k == null)) return null
+        return buildJsonObject {
+            put("id", id); put("type", "hrSeries"); put("wid", wid); put("at", at)
+            if (v != null) { put("t0", t0); put("dt", dt); put("v", JsonArray(v.map { JsonPrimitive(it) })) }
+            if (k != null) put("kcal", k)
+        }
+    }
+
     /** "Keep going" on "Still training?": the phone stops asking too (lib/watch-sync.js stillHere). */
     fun stillHere(s: SessionState, at: Double, id: String): Event? {
         val w = s.workout ?: return null
