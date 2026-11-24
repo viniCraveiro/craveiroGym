@@ -12,14 +12,19 @@
  *   - Disconnect forgets the tokens here and never calls /oauth/deauthorize, which would end the
  *     app's access for that athlete everywhere
  *
- * The OAuth exchange (code → tokens) and the refresh go to www.strava.com; the upload is
- * POST /api/v3/activities (a manual activity: name, sport type, start, length, distance, a
- * description with every exercise and its sets). Tokens are sealed by the hub (crypto.js).
+ * The OAuth exchange (code → tokens) and the refresh go to www.strava.com. A strength session
+ * goes up as Strava's JSON file (POST /api/v3/uploads, data_type json): every work set with its
+ * exercise (strava-exercises.js), reps and weight, so Strava lists the exercises and the volume
+ * the way it does for Hevy, with the heart rate when there is one. Cardio goes as a TCX file
+ * when it has a heart rate, else as a manual activity (POST /api/v3/activities: name, sport
+ * type, start, length, distance). Every one carries a description with each exercise and its
+ * sets. Tokens are sealed by the hub (crypto.js).
  * `fetchFn` is the network, injectable for the tests: (url, { method, headers, body }) →
  * { status, json() }. */
 
 import { LIB_BY_ID } from '../../coach/core/library.js';
 import { NAMES_PT } from '../exercise-names-pt.js';
+import { stravaExercise } from '../strava-exercises.js';
 
 export const AUTHORIZE_URL = 'https://www.strava.com/oauth/authorize';
 export const TOKEN_URL = 'https://www.strava.com/oauth/token';
@@ -231,6 +236,62 @@ export function tcxFor(w, act) {
     + `<Notes>${xml(act.name)}</Notes><Creator xsi:type="Device_t" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Name>Craveiro Gym</Name></Creator></Activity></Activities></TrainingCenterDatabase>\n`;
 }
 
+/* ---------- the sets: what lets Strava show the exercises, the weight and the volume ---------- */
+
+const KG_PER_LB = 0.45359237;
+
+/**
+ * A strength session as Strava's JSON upload (developers.strava.com/docs/uploads): each work set
+ * as { exercise_type, repetitions, weight (kg) } or, timed, { exercise_type, duration }, each side
+ * of a one-sided set as a set of its own, and the heart rate as a stream when there is one. A
+ * string, or null when there is not one set to give (Strava wants at least one).
+ */
+export function setsFileFor(w, act, { tz = 'UTC' } = {}) {
+  if (!w || !act) return null;
+  const kg = w.unit === 'lb' ? x => Math.round(x * KG_PER_LB * 100) / 100 : x => Math.round(x * 100) / 100;
+  const sets = [];
+  const add = (type, s) => {
+    if (!s || s.warmup) return;
+    const o = { exercise_type: type };
+    if (isCardioSet(s)) o.duration = Math.round(Number(s.minutes) * 60);
+    else if (Number(s.reps) > 0) o.repetitions = Math.round(Number(s.reps));
+    else if (Number(s.seconds) > 0) o.duration = Math.round(Number(s.seconds));
+    else return;
+    if (!isCardioSet(s) && Number(s.weight) > 0) o.weight = kg(Number(s.weight));
+    sets.push(o);
+  };
+  for (const e of Array.isArray(w.exercises) ? w.exercises : []) {
+    const type = stravaExercise(e);
+    for (const s of e.sets || []) {
+      if (s?.sides) { add(type, s.sides.left); add(type, s.sides.right); } else add(type, s);
+    }
+  }
+  if (!sets.length) return null;
+  let t0 = Date.parse(w.startedAt || (w.date ? w.date + 'T12:00:00Z' : ''));
+  if (!Number.isFinite(t0)) t0 = Date.now();
+  t0 = Math.floor(t0 / 1000) * 1000;
+  const elapsed = Math.max(1, Number(act.elapsed_time) || 1);
+  const local = localTime(new Date(t0).toISOString(), tz);
+  const offset = local ? Math.round((Date.parse(local + 'Z') - t0) / 60_000) * 60 : 0;
+  // The heart rate inside the session, in whole seconds from its start.
+  const time = [], heartrate = [];
+  for (const [t, b] of heartPoints(w)) {
+    const sec = Math.floor((t - t0) / 1000);
+    if (sec < 0 || sec > elapsed || (time.length && sec <= time[time.length - 1])) continue;
+    time.push(sec); heartrate.push(b);
+  }
+  return JSON.stringify({
+    version: '1.0',
+    start_time: iso(t0),
+    utc_offset: Number.isFinite(offset) ? offset : 0,
+    elapsed_time: elapsed,
+    ...(w.calories ? { total_calories: w.calories } : {}),
+    creator: { name: 'Craveiro Gym' },
+    ...(time.length >= 2 ? { streams: { time, heartrate } } : {}),
+    sets,
+  });
+}
+
 /* ---------- talking to Strava ---------- */
 
 const form = o => Object.entries(o).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v))).join('&');
@@ -240,7 +301,7 @@ export function multipart(fields, file) {
   const b = '----craveirogym' + Math.random().toString(16).slice(2);
   let s = '';
   for (const [k, v] of Object.entries(fields)) s += `--${b}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`;
-  s += `--${b}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: application/xml\r\n\r\n${file.data}\r\n--${b}--\r\n`;
+  s += `--${b}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: ${file.type || 'application/xml'}\r\n\r\n${file.data}\r\n--${b}--\r\n`;
   return { body: s, type: 'multipart/form-data; boundary=' + b };
 }
 
@@ -342,10 +403,12 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
 
     /**
      * One workout up. `reveal(name)` opens a sealed secret, `reseal(map)` stores refreshed ones.
-     * With a heart rate (the curve, or a watch's per set) it goes as a file (POST /uploads, then
-     * the sport set on the activity it made), which gives Strava its chart and Relative Effort;
-     * without, as a manual activity. Where an upload got to is kept on the job (`job.stage`), so a
-     * retry picks up there instead of uploading twice.
+     * Strength goes as Strava's JSON file (POST /uploads): its sets, reps and weight, and the
+     * heart rate when there is one. Cardio with a heart rate (the curve, or a watch's per set)
+     * goes as a TCX file, then the sport set on the activity it made, which gives Strava its chart
+     * and Relative Effort; without, as a manual activity. A JSON file Strava cannot read goes
+     * again the cardio way, so the workout still gets there. Where an upload got to is kept on the
+     * job (`job.stage`), so a retry picks up there instead of uploading twice.
      */
     async deliver(job, reveal, { reseal = () => {}, info = {}, workout, lang = null } = {}) {
       if (job.ev === 'test') {
@@ -358,7 +421,8 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
       if (workout === null) return { ok: true, status: 0, msg: 'The workout was deleted before it went up.' };
       const w = workout || job.payload?.data?.workout;
       const L = langOf(String(env.STRAVA_LANG || '').trim() || lang);
-      const act = activityFor(w, { strength: info.strength === 'on', lang: L, tz: String(env.STRAVA_TZ || env.TZ || '').trim() || 'UTC' });
+      const tz = String(env.STRAVA_TZ || env.TZ || '').trim() || 'UTC';
+      const act = activityFor(w, { strength: info.strength === 'on', lang: L, tz });
       if (!act) return { ok: true, status: 0, msg: 'Nothing to upload: strength workouts are off.' };
 
       let token = reveal('access');
@@ -388,24 +452,30 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
       };
       const net = { ok: false, retry: true, code: 'network', msg: 'Could not reach Strava.' };
 
-      const file = tcxFor(w, act);
+      job.stage = job.stage && typeof job.stage === 'object' ? job.stage : {};
+      const sets = act.sport_type === 'WeightTraining' && !job.stage.plain ? setsFileFor(w, act, { tz }) : null;
+      const tcx = sets ? null : tcxFor(w, act);
+      const file = sets ? { kind: 'json', data: sets, type: 'application/json' } : tcx ? { kind: 'tcx', data: tcx, type: 'application/xml' } : null;
       try {
-        if (!file) {
+        if (!file && !job.stage.upload && !job.stage.activity) {
           const res = await send('POST', ACTIVITY_URL, { body: act });
           if (res.status === 201 || res.status === 200) return { ok: true, status: res.status, ms: res.ms };
           return refused(res, 'activity');
         }
-        job.stage = job.stage && typeof job.stage === 'object' ? job.stage : {};
         if (!job.stage.upload && !job.stage.activity) {
           const { body, type } = multipart({
-            data_type: 'tcx', name: act.name, description: act.description, external_id: `craveirogym-${String(w.id).slice(0, 60)}.tcx`,
+            data_type: file.kind, name: act.name, description: act.description, sport_type: act.sport_type,
+            external_id: `craveirogym-${String(w.id).slice(0, 60)}.${file.kind}`,
             ...(act.trainer ? { trainer: 1 } : {}),
-          }, { name: 'workout.tcx', data: file });
+          }, { name: 'workout.' + file.kind, data: file.data, type: file.type });
           const res = await send('POST', UPLOAD_URL, { body, type });
           if (res.status !== 201 && res.status !== 200) return refused(res, 'upload');
           if (!res.data?.id) return { ok: false, retry: true, status: res.status, code: 'http', msg: 'Strava took the upload without saying where it went.' };
           job.stage.upload = String(res.data.id);
+          job.stage.kind = file.kind;
         }
+        // An upload from before the JSON file was a TCX one.
+        const kind = job.stage.kind || 'tcx';
         // Strava turns the file into an activity in a few seconds.
         for (let i = 0; !job.stage.activity && i < 4; i++) {
           if (i) await new Promise(r => { const t = setTimeout(r, pollMs); t.unref?.(); });
@@ -416,10 +486,16 @@ export function stravaProvider({ env = process.env, fetchFn = globalThis.fetch, 
             // The same file twice (a job sent again after a crash): the activity it made the first time.
             const dup = /duplicate of .*?activities\/(\d+)/i.exec(String(res.data.error));
             if (dup) { job.stage.activity = dup[1]; break; }
-            return { ok: false, retry: false, status: 400, code: 'upload', msg: `Strava could not read the file: ${String(res.data.error).replace(/<[^>]*>/g, '').slice(0, 120)}` };
+            const why = String(res.data.error).replace(/<[^>]*>/g, '').slice(0, 120);
+            // The sets refused (an exercise Strava does not take, a change on its side): the
+            // workout goes again with its sets in the description only.
+            if (kind === 'json') { job.stage = { plain: why }; return { defer: 1000 }; }
+            return { ok: false, retry: false, status: 400, code: 'upload', msg: `Strava could not read the file: ${why}` };
           }
         }
         if (!job.stage.activity) return { defer: 30_000 };
+        // The JSON file named its sport itself.
+        if (kind === 'json') return { ok: true, status: 201 };
         // The file says only "other": the sport (Weight Training) and the indoor flag go on now.
         const res = await send('PUT', `${ACTIVITY_URL}/${encodeURIComponent(job.stage.activity)}`, {
           body: { sport_type: act.sport_type, name: act.name, description: act.description, ...(act.trainer ? { trainer: 1 } : {}) },

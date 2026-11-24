@@ -202,12 +202,19 @@ as both of them expect.
 Finished workouts go up to Strava as activities, from your server, whichever device you logged
 them on: cardio as what it was (a treadmill or outdoor run, a ride, a row, the elliptical, the
 stairs), with its time and distance, and, if you switch on **Strength workouts too**, strength
-sessions as *Weight Training* with every exercise and set in the description. Upload only:
+sessions as *Weight Training* with their exercises, sets, reps and weight, the way Hevy or a
+Garmin watch sends them, so Strava lists each exercise and works out the volume. Upload only:
 nothing is read back from Strava. Idea by @workhardbekind (#478).
 
 - Settings → Integrations → Strava → **Connect** (in a browser signed in to your server: the
   Strava sign-in comes back to the server's address). The phone apps then upload through the same
   connection.
+- **Strength goes up as Strava's JSON file**: each work set with its exercise, reps and weight
+  in kg (warm-ups left out, each side of a one-sided set as a set of its own). Strava has its own
+  list of exercises, so each one is matched by name and equipment to the closest (a person's own
+  exercises too, named in English or Portuguese), else to the family it belongs to, such as
+  "Curl" or "Squat". If Strava refuses the sets, the workout goes again without them, with
+  everything in the description.
 - **With a heart rate it goes up as a file**, so Strava draws the heart-rate chart and works out
   Relative Effort: the whole curve the Wear OS watch measured (or the one the phone read from
   Health Connect), else the average and peak of each set the watch measured. Without one it is a

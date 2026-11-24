@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const { createIntegrations, OAUTH_STATE_MS } = await import('../integrations/index.js');
-const { activityFor, sportOf, tcxFor, heartPoints, localTime, AUTHORIZE_URL, TOKEN_URL, ACTIVITY_URL, UPLOAD_URL } = await import('../integrations/providers/strava.js');
+const { activityFor, sportOf, tcxFor, setsFileFor, heartPoints, localTime, AUTHORIZE_URL, TOKEN_URL, ACTIVITY_URL, UPLOAD_URL } = await import('../integrations/providers/strava.js');
 const { workoutPayload } = await import('../integrations/events.js');
 
 const SECRET = 'b'.repeat(64);
@@ -151,8 +151,10 @@ test('a workout as an activity: cardio as what it was, strength only when asked'
   assert.equal(sportOf('Mystery').sport, 'Workout');
 });
 
-test('a finished workout goes up once; strength follows the switch; an expired token is renewed', async () => {
-  const { h, s } = hub();
+test('a finished workout goes up once; strength follows the switch, as its sets; an expired token is renewed', async () => {
+  const s0 = strava();
+  s0.ready = 0;
+  const { h, s } = hub(ENV, s0);
   const { connection } = await connect(h);
   const prev = { workouts: [] };
   assert.equal(h.onStateWrite('u1', prev, { ...doc, workouts: [cardio, lifting] }), 2);
@@ -167,8 +169,16 @@ test('a finished workout goes up once; strength follows the switch; an expired t
   // the access token is refused once: the refresh is used and the upload goes again
   s.access.clear();
   await h._outbox().run();
-  assert.equal(s.activities.length, 2);
-  assert.equal(s.activities[1].sport_type, 'WeightTraining');
+  assert.equal(s.activities.length, 1, 'strength is a file, not a manual activity');
+  assert.equal(s.uploads.length, 1);
+  assert.equal(s.uploads[0].data_type, 'json');
+  assert.equal(s.uploads[0].sport_type, 'WeightTraining');
+  assert.equal(s.uploads[0].external_id, 'craveirogym-w3.json');
+  assert.deepEqual(JSON.parse(s.uploads[0].file).sets, [
+    { exercise_type: 'BARBELL_BENCH_PRESS', repetitions: 8, weight: 60 },
+    { exercise_type: 'BARBELL_BENCH_PRESS', repetitions: 7, weight: 60 },
+  ]);
+  assert.equal(s.updates.length, 0, 'the file named its sport, nothing to set after');
   assert.ok(s.calls.some(c => c.url === TOKEN_URL && c.form.grant_type === 'refresh_token'));
 });
 
@@ -221,7 +231,7 @@ test('the heart rate as a file: the curve when there is one, else what the watch
   assert.equal(tcxFor(workoutPayload(lifting, doc), activityFor(workoutPayload(lifting, doc), { strength: true })), null, 'none without a heart rate');
 });
 
-test('a workout with a heart rate goes up as a file 10 minutes later, read again then, and becomes Weight Training', async () => {
+test('a strength workout with a heart rate goes up 10 minutes later, read again then, with its sets and the curve', async () => {
   let clock = NOW;
   const s = strava();
   s.ready = 0;
@@ -240,10 +250,18 @@ test('a workout with a heart rate goes up as a file 10 minutes later, read again
   await h._outbox().run();
   assert.equal(s.activities.length, 0);
   assert.equal(s.uploads.length, 1);
-  assert.equal(s.uploads[0].data_type, 'tcx');
-  assert.match(s.uploads[0].file, /<HeartRateBpm><Value>129<\/Value>/);
+  assert.equal(s.uploads[0].data_type, 'json');
+  assert.equal(s.uploads[0].sport_type, 'WeightTraining');
+  assert.equal(s.uploads[0].trainer, '1');
+  const file = JSON.parse(s.uploads[0].file);
+  assert.equal(file.version, '1.0');
+  assert.equal(file.elapsed_time, 60 * 60);
+  assert.equal(file.streams.heartrate.length, 30);
+  assert.equal(file.streams.heartrate[29], 129);
+  assert.deepEqual(file.streams.time.slice(0, 3), [0, 10, 20]);
+  assert.equal(file.sets.length, 2, 'the warm-up left out');
   assert.match(s.uploads[0].description, /^Supino com barra\nSérie 1/);
-  assert.deepEqual(s.updates.map(u => [u.id, u.sport_type, u.trainer]), [['5001', 'WeightTraining', '1']]);
+  assert.equal(s.updates.length, 0);
   assert.equal(h.describe('u1').connections[0].queued, 0);
 });
 
@@ -256,9 +274,71 @@ test('an upload Strava already has is the activity it made; a workout deleted me
   h.update('u1', connection.id, { strength: true });
   h.onStateWrite('u1', { workouts: [] }, stored);
   await h._outbox().run();
-  assert.deepEqual(s.updates.map(u => u.id), ['777']);
+  assert.equal(s.uploads.length, 1);
+  assert.equal(s.updates.length, 0, 'the activity Strava made the first time is the one');
+  assert.equal(h.describe('u1').connections[0].queued, 0);
   stored = { ...doc, workouts: [] };
   h.onStateWrite('u1', { workouts: [] }, { ...doc, workouts: [{ ...lifting, id: 'w9' }] });
   await h._outbox().run();
   assert.equal(s.uploads.length + s.activities.length, 1, 'the deleted one stayed here');
+});
+
+test('cardio with a heart rate still goes as a TCX file, then its sport is set on the activity', async () => {
+  const s = strava();
+  s.ready = 0;
+  const stored = { ...doc, workouts: [{ ...cardio, hrs: { t0: cardio.start, dt: 10, v: Array.from({ length: 30 }, (_, i) => 120 + i) } }] };
+  const { h } = hub(ENV, s, Date.now, () => stored);
+  await connect(h);
+  h.onStateWrite('u1', { workouts: [] }, stored);
+  await h._outbox().run();
+  assert.equal(s.uploads.length, 1);
+  assert.equal(s.uploads[0].data_type, 'tcx');
+  assert.equal(s.uploads[0].sport_type, 'Run');
+  assert.equal(s.uploads[0].external_id, 'craveirogym-w1.tcx');
+  assert.deepEqual(s.updates.map(u => [u.id, u.sport_type]), [['5001', 'Run']]);
+});
+
+test('sets Strava will not read: the workout goes again without them, so it still gets there', async () => {
+  let clock = NOW;
+  const s = strava();
+  s.uploadError = 'Unrecognised exercise_type';
+  const stored = { ...doc, workouts: [lifting] };
+  const { h } = hub(ENV, s, () => clock, () => stored);
+  const { connection } = await connect(h);
+  h.update('u1', connection.id, { strength: true });
+  h.onStateWrite('u1', { workouts: [] }, stored);
+  await h._outbox().run();
+  assert.equal(s.uploads.length, 1);
+  assert.equal(s.activities.length, 0);
+  clock += 5000;
+  await h._outbox().run();
+  assert.equal(s.uploads.length, 1, 'not the same file again');
+  assert.equal(s.activities.length, 1, 'a manual Weight Training activity, its sets in the description');
+  assert.equal(s.activities[0].sport_type, 'WeightTraining');
+  assert.match(s.activities[0].description, /^Barbell bench press\nSet 1: 60 kg × 8/);
+  assert.equal(h.describe('u1').connections[0].queued, 0);
+});
+
+test('the sets file: work sets only, each side its own set, time for timed sets, pounds in kilograms', () => {
+  const t0 = Date.parse('2026-11-18T22:00:00Z');
+  const w = { id: 'w5', d: '2026-11-18', name: 'Arms', start: t0, end: t0 + 40 * 60000, entries: [
+    { id: '0025', sets: [{ w: 45, r: 10, phase: 'warmup', done: true }, { w: 135, r: 5, done: true }, { w: 135, r: 5, done: false }] },
+    { id: 'curl', sets: [{ sides: { L: { w: 20, r: 12, done: true }, R: { w: 20, r: 10, done: true } } }] },
+    { id: 'plank', sets: [{ sec: 60, done: true }, { done: true }] },
+  ] };
+  const own = { unit: 'lb', customEx: [{ id: 'curl', name: 'Rosca alternada com halteres' }, { id: 'plank', name: 'Prancha' }] };
+  const p = workoutPayload(w, own);
+  const file = JSON.parse(setsFileFor(p, activityFor(p, { strength: true }), { tz: 'America/Sao_Paulo' }));
+  assert.equal(file.start_time, '2026-11-18T22:00:00Z');
+  assert.equal(file.utc_offset, -3 * 3600);
+  assert.equal(file.elapsed_time, 40 * 60);
+  assert.equal(file.streams, undefined, 'no heart rate, no stream');
+  assert.deepEqual(file.sets, [
+    { exercise_type: 'BARBELL_BENCH_PRESS', repetitions: 5, weight: 61.23 },
+    { exercise_type: 'STANDING_DUMBBELL_BICEPS_CURL', repetitions: 12, weight: 9.07 },
+    { exercise_type: 'STANDING_DUMBBELL_BICEPS_CURL', repetitions: 10, weight: 9.07 },
+    { exercise_type: 'PLANK_GENERIC', duration: 60 },
+  ]);
+  const warmupsOnly = workoutPayload({ ...w, entries: [{ id: '0025', sets: [{ w: 45, r: 10, phase: 'warmup', done: true }] }] }, own);
+  assert.equal(setsFileFor(warmupsOnly, activityFor(warmupsOnly, { strength: true })), null);
 });
